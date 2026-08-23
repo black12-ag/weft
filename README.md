@@ -1,112 +1,57 @@
-<a href="https://www.warp.dev">
-    <img width="1024" alt="Warp Agentic Development Environment product preview" src="https://github.com/user-attachments/assets/9976b2da-2edd-4604-a36c-8fd53719c6d4" />
-</a>
-&nbsp;
-<p align="center">
-  <a href="https://www.warp.dev"><img height="20" alt="Built with Warp" src="https://raw.githubusercontent.com/warpdotdev/brand-assets/main/Github/Built-With-Warp-Export@2x.png" /></a>
-  &nbsp;
-  <a href="https://oz.warp.dev"><img height="20" alt="Powered by Oz" src="https://raw.githubusercontent.com/warpdotdev/brand-assets/main/Github/Powered-By-Oz-Export@2x.png" /></a>
-</p>
+# Weft — one terminal, all your CLI subscriptions
 
-<p align="center">
-  <a href="https://www.warp.dev">Website</a>
-  ·
-  <a href="https://www.warp.dev/code">Code</a>
-  ·
-  <a href="https://www.warp.dev/agents">Agents</a>
-  ·
-  <a href="https://www.warp.dev/terminal">Terminal</a>
-  ·
-  <a href="https://www.warp.dev/drive">Drive</a>
-  ·
-  <a href="https://docs.warp.dev">Docs</a>
-  ·
-  <a href="https://www.warp.dev/blog/how-warp-works">How Warp Works</a>
-</p>
+> In weaving, the *weft* is the thread that crosses the *warp*. A fork of [Warp's open-source terminal](https://github.com/warpdotdev/warp) that weaves Claude Code, OpenAI Codex, and Google Gemini into one chat.
 
-> [!NOTE]
-> OpenAI is the founding sponsor of the new, open-source Warp repository, and the new agentic management workflows are powered by GPT models.
+Its AI chat runs on **your own local CLI agents** using the subscriptions you already pay for.
 
-<h1></h1>
+**No Warp account. No sign-in. No API keys. No Warp servers. Ever.**
 
-## About
+## What you get
 
-[Warp](https://www.warp.dev) is an agentic development environment, born out of the terminal. Use Warp's built-in coding agent, or bring your own CLI agent (Claude Code, Codex, Gemini CLI, and others).
+- **One chat, every model** — pick any Claude / Codex (GPT) / Gemini model from the model button, switch mid-conversation, and the new model continues exactly where the last one stopped. Cross-provider memory is built in.
+- **Thinking levels** — every model exposes its reasoning range (low → max / minimal → xhigh). Pick the speed↔depth trade-off per model from the composer's model popup.
+- **Live streaming** — answers and the model's thinking type out live; the thinking auto-collapses into a "Thought for Xs" dropdown when the answer lands. Token usage is shown after each reply.
+- **Agentic Codex** — Codex can read files and run commands in your current project (read-only sandbox) and shows each step live.
+- **Fast** — Claude ~4s, Codex ~6s for a short reply. Fast mode skips each CLI's heavy MCP/plugin/skill loading; type `tools on` in the chat to load your full personal MCP + skills config when you need it (`tools off` to go back).
+- **A brain** — every exchange is saved as markdown (to your Obsidian vault's `Weft/` folder if you have one, else `~/.weft/brain/`), one note per project, and recalled automatically in later sessions. All models share it. `memory on` / `memory off` / `memory clear`.
+- **Connect a CLI from Settings** — Settings → Agents → Third party CLI agents shows each CLI (installed? signed in?) with a **Connect** button that runs the provider's own login (`claude auth login`, `codex login`, `gemini`). Credentials go straight to the provider; this app never sees them.
 
-## Installation
+## Install (download)
 
-You can [download Warp](https://www.warp.dev/download) and [read our docs](https://docs.warp.dev/) for platform-specific instructions.
+1. Download `Weft.dmg` from the Releases tab.
+2. Open it, drag **Weft** to Applications.
+3. First launch: right-click the app → **Open** (it's ad-hoc signed, so macOS asks once). Or run:
+   ```
+   xattr -dr com.apple.quarantine /Applications/Weft.app
+   ```
+4. Install / sign in to at least one CLI (each uses its own subscription):
+   - Claude Code: `npm i -g @anthropic-ai/claude-code` then `claude auth login`
+   - Codex: `npm i -g @openai/codex` then `codex login`
+   - Gemini: `npm i -g @google/gemini-cli` then run `gemini` once
+5. Open Weft → type `/agent` (or use the chat) → pick a model from the model button → go.
 
-## Warp Contributions Overview Dashboard
+## Build from source
 
-Explore [build.warp.dev](https://build.warp.dev) to:
-- Watch thousands of Oz agents triage issues, write specs, implement changes, and review PRs
-- View top contributors and in-flight features
-- Track your own issues with GitHub sign-in
-- Click into active agent sessions in a web-compiled Warp terminal
+Requirements: macOS, Xcode (with the Metal toolchain), Rust (rustup — the repo pins the toolchain), protoc.
 
-## Oz for OSS
-
-Maintaining a popular open-source project? [Apply for Oz credits](https://tally.so/r/LZWxqG) to explore [Oz for OSS](https://github.com/warpdotdev/oz-for-oss).
-
-Oz for OSS is our partner program for bringing the same agentic open-source management workflows used in this repository to select partner repositories. We work directly with maintainers to implement workflows for issue triage, PR review, community management, and contributor coordination in a way that fits each project.
-
-## Licensing
-
-Warp's UI framework (the `warpui_core` and `warpui` crates) are licensed under the [MIT license](LICENSE-MIT).
-
-The rest of the code in this repository is licensed under the [AGPL v3](LICENSE-AGPL).
-
-## Open Source & Contributing
-
-Warp's client codebase is open source and lives in this repository. We welcome community contributions and have designed a lightweight workflow to help new contributors get started. For the full contribution flow, read our [CONTRIBUTING.md](CONTRIBUTING.md) guide.
-
-> [!TIP]
-> **Chat with contributors and the Warp team** in the [`#oss-contributors`](https://warpcommunity.slack.com/archives/C0B0LM8N4DB) Slack channel — a good place for ad-hoc questions, design discussion, and pairing with maintainers. New here? [Join the Warp Slack community](https://go.warp.dev/join-preview) first, then jump into `#oss-contributors`.
-
-### Issue to PR
-
-Before filing, [search existing issues](https://github.com/warpdotdev/warp/issues?q=is%3Aissue+is%3Aopen+sort%3Areactions-%2B1-desc) for your bug or feature request. If nothing exists, [file an issue](https://github.com/warpdotdev/warp/issues/new/choose) using our templates. Security vulnerabilities should be reported privately as described in [CONTRIBUTING.md](CONTRIBUTING.md#reporting-security-issues).
-
-Once filed, a Warp maintainer reviews the issue and may apply a readiness label: [`ready-to-spec`](https://github.com/warpdotdev/warp/issues?q=is%3Aissue+is%3Aopen+label%3Aready-to-spec) signals the design is open for contributors to spec out, and [`ready-to-implement`](https://github.com/warpdotdev/warp/issues?q=is%3Aissue+is%3Aopen+label%3Aready-to-implement) signals the design is settled and code PRs are welcome. Anyone can pick up a labeled issue — mention **@oss-maintainers** on an issue if you'd like it considered for a readiness label.
-
-### Building the Repo Locally
-
-To build and run Warp from source:
-
-```bash
-./script/bootstrap   # platform-specific setup
-./script/run         # build and run Warp
-./script/presubmit   # fmt, clippy, and tests
+```
+git clone <this repo>
+cd warp
+./install.sh
 ```
 
-See [AGENTS.md](AGENTS.md) for the full engineering guide, including coding style, testing, and platform-specific notes.
+The script builds the release app, packages `Weft.dmg`, and installs to `/Applications`. See `install.sh` for the individual steps.
 
-## Joining the Team
+## Customize it
 
-Interested in joining the team? See our [open roles](https://www.warp.dev/careers).
+It's all source — the local-CLI integration lives mainly in:
 
-## Support and Questions
+- `app/src/ai/agent/api/impl.rs` — runs the CLIs, streams thinking/answers, transcript memory, the Obsidian brain, `tools`/`memory` chat commands.
+- `app/src/ai/llms.rs` — which models each CLI exposes (add your own here).
+- `app/src/settings_view/cli_agents_page.rs` — the Connected CLIs settings section.
 
-1. See our [docs](https://docs.warp.dev/) for a comprehensive guide to Warp's features.
-2. Join our [Slack Community](https://go.warp.dev/join-preview) to connect with other users and get help from the Warp team — contributors hang out in [`#oss-contributors`](https://warpcommunity.slack.com/archives/C0B0LM8N4DB).
-3. Try our [Preview build](https://www.warp.dev/download-preview) to test the latest experimental features.
-4. Mention **@oss-maintainers** on any issue to escalate to the team — for example, if you encounter problems with the automated agents.
+Add another CLI by extending `build_local_cli_invocation` (how to call it) and `local_cli_llm_choices` (which models to list).
 
-## Code of Conduct
+## License
 
-We ask everyone to be respectful and empathetic. Warp follows the [Code of Conduct](CODE_OF_CONDUCT.md). To report violations, email warp-coc at warp.dev.
-
-## Open Source Dependencies
-
-We'd like to call out a few of the [open source dependencies](https://docs.warp.dev/help/licenses) that have helped Warp to get off the ground:
-
-- [Tokio](https://github.com/tokio-rs/tokio)
-- [NuShell](https://github.com/nushell/nushell)
-- [Fig Completion Specs](https://github.com/withfig/autocomplete)
-- [Warp Server Framework](https://github.com/seanmonstar/warp)
-- [Alacritty](https://github.com/alacritty/alacritty)
-- [Hyper HTTP library](https://github.com/hyperium/hyper)
-- [FontKit](https://github.com/servo/font-kit)
-- [Core-foundation](https://github.com/servo/core-foundation-rs)
-- [Smol](https://github.com/smol-rs/smol)
+Same licenses as upstream Warp OSS (see `LICENSE-MIT` / `LICENSE-AGPL`). This fork's changes are offered under the same terms.
