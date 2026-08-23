@@ -52,6 +52,23 @@ It's all source — the local-CLI integration lives mainly in:
 
 Add another CLI by extending `build_local_cli_invocation` (how to call it) and `local_cli_llm_choices` (which models to list).
 
+## Credits — what's Warp, what's Weft
+
+**Weft stands on Warp's work, and credits it fully.** The entire terminal is [Warp](https://github.com/warpdotdev/warp)'s open source: the terminal engine, the whole UI and UX, the blocks/rendering, the agent chat surface, the settings system, the model-picker components, and the client/agent backend. None of that is ours — Warp built it, and it's excellent.
+
+**What Weft changes is one layer: where the AI comes from.** Warp's AI chat talks to Warp's cloud (account + credits). Weft rewires that layer so the same chat runs on **your own local CLI agents** — the subscriptions you already pay for — with **no account, no login, no API keys, and no calls to any server.** Concretely, Weft adds/modifies:
+
+- **Local-CLI execution** — the agent chat runs `claude` / `codex` / `gemini` locally instead of Warp's servers (`app/src/ai/agent/api/impl.rs`).
+- **All models + thinking levels, no server** — every model each CLI offers, with per-model reasoning/effort (`app/src/ai/llms.rs`).
+- **Live streaming** of the answer and the model's thinking, with an auto-collapsing "thought" block and token counts.
+- **One shared conversation across providers** — switch Claude↔Codex↔Gemini mid-chat and it continues where you left off.
+- **A persistent brain** — every exchange saved as markdown (Obsidian vault or `~/.warposs/brain/`) and recalled across sessions.
+- **Fast mode** — skips each CLI's heavy MCP/plugin/skill scan for terminal-speed replies (`tools on` loads them when needed).
+- **Connect-a-CLI settings** — Settings → Third party CLI agents shows install/login status and a Connect/Disconnect button per CLI.
+- **No-login build** — sign-in prompts and credit banners removed (the `skip_login` feature and related gates).
+
+This project is **actively updated** — expect frequent changes as the CLI integration, memory, and settings evolve.
+
 ## License
 
-Same licenses as upstream Warp OSS (see `LICENSE-MIT` / `LICENSE-AGPL`). This fork's changes are offered under the same terms.
+Weft is a fork of Warp's open-source terminal and keeps Warp's licensing in full — see [`LICENSE-MIT`](LICENSE-MIT) and [`LICENSE-AGPL`](LICENSE-AGPL). All original terminal/UI/UX/backend code is © Warp (Denver Technologies, Inc.). Weft's modifications (the local-CLI AI layer described above) are released under the same terms. If you distribute Weft or a build of it, you must keep these licenses and this attribution.
