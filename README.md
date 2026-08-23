@@ -4,7 +4,9 @@
 
 Its AI chat runs on **your own local CLI agents** using the subscriptions you already pay for.
 
-**No Warp account. No sign-in. No API keys. No Warp servers. Ever.**
+**No Warp account. No sign-in. No API keys *needed*. No Warp servers. Ever.**
+
+> Weft is **CLI-only today** — models run through your CLI subscriptions, so you don't need to pay for API keys. (Bringing your *own* API key as an alternative to a CLI subscription is planned but not in this version.)
 
 ## What you get
 
