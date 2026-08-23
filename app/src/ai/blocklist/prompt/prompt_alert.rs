@@ -118,6 +118,12 @@ impl PromptAlertView {
     }
 
     pub fn determine_state(app: &AppContext) -> PromptAlertState {
+        // Local-only build: AI runs entirely on the user's local CLI (their own
+        // subscription), never Warp's server or credits. Never show any
+        // credits / upgrade / sign-up / API-key prompt alert.
+        if cfg!(feature = "skip_login") {
+            return PromptAlertState::NoAlert;
+        }
         // First, if the user is offline, no AI features will work.
         if !NetworkStatus::as_ref(app).is_online() {
             return PromptAlertState::NoConnection;

@@ -19,6 +19,7 @@ use warpui::elements::{
     ParentElement, Radius, Shrinkable,
 };
 use warpui::keymap::ContextPredicate;
+use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::ui_components::switch::SwitchStateHandle;
 use warpui::{
@@ -31,7 +32,7 @@ use super::ai_shared::{
 };
 use super::settings_page::{
     AdditionalInfo, CONTENT_FONT_SIZE, LocalOnlyIconState, MatchData, PageType, SettingsPageMeta,
-    SettingsPageViewHandle, SettingsWidget, ToggleState, build_toggle_element,
+    SettingsPageViewHandle, SettingsWidget, ToggleState, build_toggle_element, render_body_item,
     render_body_item_label,
 };
 use super::{SettingsAction, SettingsSection, ToggleSettingActionPair, flags};
@@ -47,6 +48,7 @@ use crate::settings::{
 };
 use crate::terminal::CLIAgent;
 use crate::util::bindings;
+use crate::workspace::WorkspaceAction;
 use crate::view_components::dropdown::DropdownAction;
 use crate::view_components::{Dropdown, SubmittableTextInput, SubmittableTextInputEvent};
 use crate::{TelemetryEvent, send_telemetry_from_ctx};
@@ -126,6 +128,7 @@ impl CLIAgentsPageView {
 
     fn build_page() -> PageType<Self> {
         let widgets: Vec<Box<dyn SettingsWidget<View = Self>>> = vec![
+            Box::new(CLIConnectionsWidget::default()),
             Box::new(CLIAgentWidget::default()),
             Box::new(CLIAgentAutoToggleRichInputWidget::default()),
             Box::new(CLIAgentAutoOpenRichInputWidget::default()),
@@ -406,6 +409,179 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
 #[cfg(not(target_family = "wasm"))]
 pub fn cli_agent_settings_widget_id() -> &'static str {
     CLIAgentWidget::static_widget_id()
+}
+
+/// True when a CLI binary exists in any of the common install locations.
+fn cli_binary_exists(name: &str) -> bool {
+    let home = std::env::var("HOME").unwrap_or_default();
+    [
+        format!("{home}/.local/bin/{name}"),
+        format!("{home}/.homebrew/bin/{name}"),
+        format!("/opt/homebrew/bin/{name}"),
+        format!("/usr/local/bin/{name}"),
+    ]
+    .iter()
+    .any(|p| std::path::Path::new(p).exists())
+}
+
+/// Claude's signed-in state, cached for 10s — `~/.claude.json` can be several
+/// MB and settings renders per frame. The OAuth tokens themselves live in the
+/// keychain; the JSON mirrors the signed-in profile under "oauthAccount".
+fn claude_logged_in_cached() -> bool {
+    use std::sync::Mutex;
+    use std::time::{Duration, Instant};
+    static CACHE: Mutex<Option<(Instant, bool)>> = Mutex::new(None);
+    let mut guard = CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some((at, val)) = *guard
+        && at.elapsed() < Duration::from_secs(10)
+    {
+        return val;
+    }
+    let home = std::env::var("HOME").unwrap_or_default();
+    let val = std::fs::read_to_string(format!("{home}/.claude.json"))
+        .map(|s| s.contains("\"oauthAccount\""))
+        .unwrap_or(false);
+    *guard = Some((Instant::now(), val));
+    val
+}
+
+/// One row of the "Connected CLIs" section: which CLI, how to detect its
+/// install/login state, and the login command the Connect button runs.
+struct CliConnection {
+    label: &'static str,
+    binary: &'static str,
+    alt_binary: Option<&'static str>,
+    login_command: &'static str,
+    /// The CLI's own sign-out command, when it has one — lets the user
+    /// disconnect and reconnect with a different account.
+    logout_command: Option<&'static str>,
+    logged_in: fn() -> bool,
+}
+
+const CLI_CONNECTIONS: &[CliConnection] = &[
+    CliConnection {
+        label: "Claude Code",
+        binary: "claude",
+        alt_binary: None,
+        login_command: "claude auth login",
+        logout_command: Some("claude auth logout"),
+        logged_in: claude_logged_in_cached,
+    },
+    CliConnection {
+        label: "OpenAI Codex",
+        binary: "codex",
+        alt_binary: None,
+        login_command: "codex login",
+        logout_command: Some("codex logout"),
+        logged_in: || {
+            let home = std::env::var("HOME").unwrap_or_default();
+            std::path::Path::new(&format!("{home}/.codex/auth.json")).exists()
+        },
+    },
+    CliConnection {
+        label: "Google Gemini",
+        binary: "gemini",
+        alt_binary: Some("agy"),
+        // Gemini has no login/logout subcommands; its first interactive run
+        // opens the Google sign-in flow, and `/auth` inside the TUI switches
+        // accounts.
+        login_command: "gemini",
+        logout_command: None,
+        logged_in: || {
+            let home = std::env::var("HOME").unwrap_or_default();
+            std::path::Path::new(&format!("{home}/.gemini/oauth_creds.json")).exists()
+        },
+    },
+];
+
+/// "Connected CLIs" section: one row per supported CLI showing install + login
+/// state, with a Connect button that runs the CLI's own login command in the
+/// terminal. The provider's flow handles credentials; Warp never sees them.
+#[derive(Default)]
+struct CLIConnectionsWidget {
+    connect_button_mouse_states: [MouseStateHandle; 3],
+}
+
+impl SettingsWidget for CLIConnectionsWidget {
+    type View = CLIAgentsPageView;
+
+    fn search_terms(&self) -> &str {
+        "connect cli agents claude codex gemini login sign in status connected"
+    }
+
+    fn render(
+        &self,
+        _view: &Self::View,
+        appearance: &Appearance,
+        _app: &AppContext,
+    ) -> Box<dyn Element> {
+        let mut column = Flex::column().with_main_axis_size(MainAxisSize::Min);
+        for (idx, conn) in CLI_CONNECTIONS.iter().enumerate() {
+            let installed = cli_binary_exists(conn.binary)
+                || conn.alt_binary.is_some_and(cli_binary_exists);
+            let connected = installed && (conn.logged_in)();
+
+            // Button command: Connect when signed out; the CLI's own logout
+            // (to switch accounts) when connected and one exists.
+            let (status, button_label, button_command) = if !installed {
+                ("Not installed", "Not installed", None)
+            } else if connected {
+                match conn.logout_command {
+                    Some(cmd) => (
+                        "Connected — models available in the chat",
+                        "Disconnect",
+                        Some(cmd),
+                    ),
+                    None => (
+                        "Connected — to switch accounts, run `gemini` and type /auth",
+                        "Connected",
+                        None,
+                    ),
+                }
+            } else {
+                ("Installed, not signed in", "Connect", Some(conn.login_command))
+            };
+            let button_enabled = button_command.is_some();
+
+            let mut button = appearance
+                .ui_builder()
+                .button(
+                    ButtonVariant::Secondary,
+                    self.connect_button_mouse_states[idx].clone(),
+                )
+                .with_text_label(button_label.to_owned());
+            if !button_enabled {
+                button = button.disabled();
+            }
+            let button = if let Some(cmd) = button_command {
+                let command = cmd.to_owned();
+                button
+                    .build()
+                    .on_click(move |ctx, _, _| {
+                        ctx.dispatch_typed_action(WorkspaceAction::RunCommand(command.clone()));
+                    })
+                    .finish()
+            } else {
+                button.build().finish()
+            };
+
+            column.add_child(render_body_item::<CLIAgentsPageAction>(
+                conn.label.to_owned(),
+                None,
+                LocalOnlyIconState::Hidden,
+                ToggleState::Enabled,
+                appearance,
+                button,
+                Some(match button_command {
+                    Some(cmd) => format!(
+                        "{status}. The button runs `{cmd}` in your terminal — the provider handles sign-in/out, and the CLI's models update automatically."
+                    ),
+                    None => format!("{status}."),
+                }),
+            ));
+        }
+        column.finish()
+    }
 }
 
 #[derive(Default)]

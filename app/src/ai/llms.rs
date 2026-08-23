@@ -826,7 +826,22 @@ impl LLMPreferences {
         app: &'a AppContext,
         terminal_view_id: Option<EntityId>,
     ) -> &'a LLMInfo {
-        self.get_preferred_base_model(app, terminal_view_id)
+        let resolved = self.get_preferred_base_model(app, terminal_view_id);
+        // Local-only build: the chat must never call Warp's server. If the resolved
+        // base model is not one of the local CLI models, fall back to the first
+        // local CLI model so every new conversation runs on the user's CLI.
+        #[cfg(feature = "skip_login")]
+        if !resolved.id.as_str().starts_with("local-cli:")
+            && let Some(cli) = self
+                .local_cli_llm_choices()
+                // Prefer a fast, clean Claude model as the startup default rather
+                // than whichever local CLI happens to be listed first.
+                .find(|m| m.id.as_str().starts_with("local-cli:claude:"))
+                .or_else(|| self.local_cli_llm_choices().next())
+        {
+            return cli;
+        }
+        resolved
     }
 
     /// Returns `LLMInfo` for the currently selected LLM to be used for Agent Mode.
@@ -896,6 +911,10 @@ impl LLMPreferences {
         Self::server_info_for_id_router_gated(available, id)
             .or_else(|| self.custom_llm_info_for_id_if_enabled(id, app))
             .or_else(|| self.custom_router_llm_info_for_id_if_enabled(id))
+            // Local CLI models live in a separate list (not the server choices), so
+            // resolve a selected `local-cli:*` id here — otherwise the selection
+            // can't be found and the picker appears "stuck" on one model.
+            .or_else(|| self.local_cli_llm_choices().find(|m| m.id == *id))
     }
 
     pub fn get_active_coding_model<'a>(
@@ -959,6 +978,12 @@ impl LLMPreferences {
             })
             .chain(self.custom_llm_choices(app))
             .chain(self.custom_router_choices())
+            .chain(self.local_cli_llm_choices())
+            .filter(|llm| {
+                // Local-only build: show ONLY the local CLI models in the picker,
+                // hiding every Warp server model (grok/kimi/cloud-claude/etc).
+                !cfg!(feature = "skip_login") || llm.id.as_str().starts_with("local-cli:")
+            })
     }
 
     #[cfg(any(test, feature = "test-util"))]
@@ -1194,6 +1219,202 @@ impl LLMPreferences {
             .iter()
             .filter(move |_| enabled)
             .map(|m| &m.info)
+    }
+
+    /// Picker entries for the user's local CLI agents (`claude` / `codex` / `agy`),
+    /// detected from the binaries installed under `~/.local/bin`. Their ids use the
+    /// `local-cli:<agent>:<model>` namespace so the request path can recognize them
+    /// and run the local CLI instead of Warp's hosted AI. Built once and cached.
+    pub fn local_cli_llm_choices(&self) -> std::slice::Iter<'static, LLMInfo> {
+        use std::collections::HashMap;
+        use std::process::{Command, Stdio};
+        use std::time::{Duration, Instant};
+
+        // Run a CLI command with a hard timeout so a slow/hung CLI can never
+        // freeze the UI. Returns stdout on success, None on timeout/failure.
+        fn run(bin: &str, args: &[&str], secs: u64) -> Option<String> {
+            let mut child = Command::new(bin)
+                .args(args)
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::null())
+                .spawn()
+                .ok()?;
+            let start = Instant::now();
+            loop {
+                match child.try_wait() {
+                    Ok(Some(_)) => break,
+                    Ok(None) => {
+                        if start.elapsed() > Duration::from_secs(secs) {
+                            let _ = child.kill();
+                            return None;
+                        }
+                        std::thread::sleep(Duration::from_millis(40));
+                    }
+                    Err(_) => return None,
+                }
+            }
+            let out = child.wait_with_output().ok()?;
+            String::from_utf8(out.stdout).ok()
+        }
+
+        static CELL: std::sync::OnceLock<Vec<LLMInfo>> = std::sync::OnceLock::new();
+        CELL.get_or_init(|| {
+            let home = std::env::var("HOME").unwrap_or_default();
+            let binpath = |name: &str| format!("{home}/.local/bin/{name}");
+            let has = |name: &str| std::path::Path::new(&binpath(name)).exists();
+
+            let mut out: Vec<LLMInfo> = Vec::new();
+            let mut add = |agent: &str, label: &str, model: &str, effort: Option<&str>| {
+                // Reasoning grouping: variants of one model share `base_model_name`
+                // and each sets `reasoning_level: Some(effort)`. The profile model
+                // selector then collapses them into ONE row per model with a native
+                // thinking submenu (see `has_reasoning_variants`). `display_name`
+                // carries the effort so the active pill and the flat `/MODEL` list
+                // stay disambiguated; the collapsed row uses `base_model_name`.
+                // The id round-trips agent/model/effort back to the CLI invocation
+                // (`local-cli:<agent>:<model>[:<effort>]`).
+                let base_name = format!("{label} · {model} (CLI)");
+                let (display, id, reasoning_level) = match effort {
+                    Some(eff) => (
+                        format!("{label} · {model} · {eff} (CLI)"),
+                        format!("local-cli:{agent}:{model}:{eff}"),
+                        Some(eff.to_string()),
+                    ),
+                    None => (
+                        base_name.clone(),
+                        format!("local-cli:{agent}:{model}"),
+                        None,
+                    ),
+                };
+                out.push(LLMInfo {
+                    display_name: display,
+                    base_model_name: base_name,
+                    id: id.into(),
+                    reasoning_level,
+                    usage_metadata: LLMUsageMetadata {
+                        request_multiplier: 1,
+                        credit_multiplier: None,
+                    },
+                    description: None,
+                    disable_reason: None,
+                    vision_supported: false,
+                    spec: None,
+                    provider: LLMProvider::Unknown,
+                    host_configs: HashMap::new(),
+                    discount_percentage: None,
+                    context_window: LLMContextWindow::default(),
+                });
+            };
+
+            // Gemini / agy — has a real "list all models" command, so fetch the
+            // complete live list automatically. Falls back to known models.
+            if has("agy") {
+                let mut any = false;
+                if let Some(text) = run(&binpath("agy"), &["models"], 6) {
+                    for line in text.lines() {
+                        let line = line.trim();
+                        if line.is_empty() || line.to_lowercase().starts_with("fetching") {
+                            continue;
+                        }
+                        let id = line
+                            .split(|c: char| c == '\t' || c == ' ')
+                            .next()
+                            .unwrap_or("")
+                            .trim();
+                        // Only expose agy's *gemini* models here. Agy also proxies
+                        // claude/gpt models, but those are confusing (they'd run via
+                        // agy, not the user's real claude/codex CLI), so skip them —
+                        // the dedicated `claude` and `codex` CLIs cover those.
+                        if !id.is_empty() && id.starts_with("gemini") {
+                            add("agy", "Gemini", id, None);
+                            any = true;
+                        }
+                    }
+                }
+                if !any {
+                    for m in ["gemini-3.7-flash-medium", "gemini-3.1-pro-high"] {
+                        add("agy", "Gemini", m, None);
+                    }
+                }
+            }
+
+            // Claude Code — no list command exists; expose the aliases (latest of
+            // each tier) plus the known versioned model ids.
+            if has("claude") {
+                for m in [
+                    "default",
+                    "fable",
+                    "opus",
+                    "sonnet",
+                    "haiku",
+                    "claude-opus-4-8",
+                    "claude-opus-4-7",
+                    "claude-opus-4-6",
+                    "claude-sonnet-4-6",
+                    "claude-haiku-4-5",
+                ] {
+                    // Claude CLI supports `--effort` (low|medium|high|xhigh|max),
+                    // so every model automatically gets its full thinking range as
+                    // reasoning variants. `low` is the fast default.
+                    for eff in ["low", "medium", "high", "xhigh", "max"] {
+                        add("claude", "Claude", m, Some(eff));
+                    }
+                }
+            }
+
+            // Codex — no list command; use its configured model plus known ones.
+            if has("codex") {
+                let mut models: Vec<String> = Vec::new();
+                if let Ok(text) = std::fs::read_to_string(format!("{home}/.codex/config.toml")) {
+                    for line in text.lines() {
+                        let l = line.trim();
+                        if let Some(rest) = l.strip_prefix("model") {
+                            if let Some(v) = rest.trim_start().strip_prefix('=') {
+                                let v = v.trim().trim_matches('"').to_string();
+                                if !v.is_empty() {
+                                    models.push(v);
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+                for m in [
+                    "gpt-5.6-sol",
+                    "gpt-5.6-terra",
+                    "gpt-5.6-luna",
+                    "gpt-5.5",
+                    "gpt-5.4",
+                    "gpt-5.4-mini",
+                    "gpt-5.3-codex-spark",
+                    "gpt-5-codex",
+                    "gpt-5",
+                    "o3",
+                ] {
+                    if !models.iter().any(|x| x == m) {
+                        models.push(m.to_string());
+                    }
+                }
+                // Codex effort applies per model, and the valid range differs by
+                // family: the API rejects `minimal` on gpt-5.6 ("Supported values
+                // are: none, low, medium, high, xhigh, max"), and `max` (Ultra) is
+                // only offered on the 5.6 family. low..xhigh is valid everywhere.
+                for m in &models {
+                    let efforts: &[&str] = if m.starts_with("gpt-5.6") {
+                        &["low", "medium", "high", "xhigh", "max"]
+                    } else {
+                        &["low", "medium", "high", "xhigh"]
+                    };
+                    for eff in efforts {
+                        add("codex", "Codex", m, Some(eff));
+                    }
+                }
+            }
+
+            out
+        })
+        .iter()
     }
 
     /// Builds the custom_model_routers registry for an outbound request.

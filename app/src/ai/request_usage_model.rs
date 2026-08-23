@@ -707,6 +707,12 @@ impl AIRequestUsageModel {
         &self,
         ctx: &AppContext,
     ) -> BuyCreditsBannerDisplayState {
+        // Local-only build: all AI runs on the user's local CLI (their own
+        // subscription), never Warp credits — so the "out of credits / use your
+        // own API key" banner must never appear anywhere.
+        if cfg!(feature = "skip_login") {
+            return BuyCreditsBannerDisplayState::Hidden;
+        }
         // Early return if user dismissed
         if self.buy_addon_credits_banner_dismissed {
             return BuyCreditsBannerDisplayState::Hidden;

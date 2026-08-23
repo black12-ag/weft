@@ -1964,9 +1964,12 @@ define_settings_group!(AISettings, settings: [
     // Whether file-based MCP servers from third-party AI tools (e.g. Claude, Codex) should
     // be automatically detected and spawned. Warp-native config files (.warp/.mcp.json) are
     // always detected and spawned, regardless of this setting.
+    // WarpOss: defaults ON so MCP servers from the user's CLIs (Claude, Codex,
+    // Gemini) appear connected automatically; the MCP settings page toggle
+    // turns it off.
     file_based_mcp_enabled: FileBasedMcpEnabled {
         type: bool,
-        default: false,
+        default: true,
         supported_platforms: SupportedPlatforms::DESKTOP,
         sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         surface: settings::SettingSurfaces::GUI,

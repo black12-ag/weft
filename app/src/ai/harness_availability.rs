@@ -45,12 +45,61 @@ pub struct HarnessAvailability {
 /// Oz is enabled by default so the UI is usable pre-fetch; the server
 /// list (which respects admin overrides) replaces this once available.
 fn default_harnesses() -> Vec<HarnessAvailability> {
-    vec![HarnessAvailability {
-        harness: Harness::Oz,
-        display_name: harness_display::display_name(Harness::Oz).to_string(),
+    // Detect the user's locally-installed CLI agents and offer them as harnesses,
+    // so they appear in the picker even with no Warp server. Each harness
+    // "delegates to" its CLI (see `Harness` docs); Warp runs the local binary.
+    let home = std::env::var("HOME").unwrap_or_default();
+    let has = |name: &str| {
+        std::path::Path::new(&format!("{home}/.local/bin/{name}")).exists()
+            || std::path::Path::new(&format!("{home}/.homebrew/bin/{name}")).exists()
+            || std::path::Path::new(&format!("/usr/local/bin/{name}")).exists()
+            || std::path::Path::new(&format!("/opt/homebrew/bin/{name}")).exists()
+    };
+    let model = |id: &str, name: &str| HarnessModelInfo {
+        id: id.to_string(),
+        display_name: name.to_string(),
+        reasoning_level: None,
+    };
+    let entry = |harness: Harness, models: Vec<HarnessModelInfo>| HarnessAvailability {
+        harness,
+        display_name: harness_display::display_name(harness).to_string(),
         enabled: true,
-        available_models: vec![],
-    }]
+        available_models: models,
+    };
+
+    let mut out = vec![entry(Harness::Oz, vec![])];
+    if has("claude") {
+        out.push(entry(
+            Harness::Claude,
+            vec![
+                model("default", "Default"),
+                model("sonnet", "Claude Sonnet"),
+                model("opus", "Claude Opus"),
+                model("haiku", "Claude Haiku"),
+            ],
+        ));
+    }
+    if has("codex") {
+        out.push(entry(
+            Harness::Codex,
+            vec![
+                model("gpt-5.3-codex-spark", "GPT-5.3 Codex Spark"),
+                model("gpt-5-codex", "GPT-5 Codex"),
+                model("gpt-5", "GPT-5"),
+                model("o3", "o3"),
+            ],
+        ));
+    }
+    if has("gemini") {
+        out.push(entry(
+            Harness::Gemini,
+            vec![
+                model("gemini-2.5-pro", "Gemini 2.5 Pro"),
+                model("gemini-2.5-flash", "Gemini 2.5 Flash"),
+            ],
+        ));
+    }
+    out
 }
 
 #[derive(Debug, Clone)]

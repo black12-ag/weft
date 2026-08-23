@@ -221,19 +221,28 @@ impl AmbientAgentViewModel {
 
         let ui_state = AmbientAgentProgressUIState::new(ctx);
 
-        let harness = Harness::default();
         let availability = HarnessAvailabilityModel::as_ref(ctx);
-        // If the default harness is not available, find the first available one.
-        let harness = if !availability.is_harness_enabled(harness) {
-            availability
-                .available_harnesses()
-                .iter()
-                .find(|h| h.enabled)
-                .map(|h| h.harness)
-                .unwrap_or(harness)
-        } else {
-            harness
-        };
+        // Default to a local CLI harness (Claude/Codex/Gemini) when one is
+        // installed, so new conversations run through the user's CLI instead of
+        // Warp's server. Fall back to the built-in default (Oz), then to any
+        // enabled harness.
+        let harness = [Harness::Claude, Harness::Codex, Harness::Gemini]
+            .into_iter()
+            .find(|&h| availability.is_harness_enabled(h))
+            .or_else(|| {
+                let default = Harness::default();
+                availability
+                    .is_harness_enabled(default)
+                    .then_some(default)
+                    .or_else(|| {
+                        availability
+                            .available_harnesses()
+                            .iter()
+                            .find(|h| h.enabled)
+                            .map(|h| h.harness)
+                    })
+            })
+            .unwrap_or_else(Harness::default);
 
         Self {
             status: Status::Composing,
@@ -400,10 +409,31 @@ impl AmbientAgentViewModel {
 
     pub fn selected_harness(&self) -> Harness {
         if self.is_local_to_cloud_handoff() {
-            Harness::Oz
-        } else {
-            self.harness
+            return Harness::Oz;
         }
+        // Never route to Warp's hosted agent (Oz) when a local CLI agent is
+        // installed: always resolve to the user's CLI so the chat runs on their
+        // CLI subscription with no Warp credits/server. A stale saved "Warp
+        // Agent" selection is transparently upgraded to the CLI here.
+        if self.harness == Harness::Oz {
+            let home = std::env::var("HOME").unwrap_or_default();
+            let has = |n: &str| {
+                std::path::Path::new(&format!("{home}/.local/bin/{n}")).exists()
+                    || std::path::Path::new(&format!("{home}/.homebrew/bin/{n}")).exists()
+                    || std::path::Path::new(&format!("/opt/homebrew/bin/{n}")).exists()
+                    || std::path::Path::new(&format!("/usr/local/bin/{n}")).exists()
+            };
+            if has("claude") {
+                return Harness::Claude;
+            }
+            if has("codex") {
+                return Harness::Codex;
+            }
+            if has("gemini") {
+                return Harness::Gemini;
+            }
+        }
+        self.harness
     }
 
     pub fn set_harness(&mut self, harness: Harness, ctx: &mut ModelContext<Self>) {

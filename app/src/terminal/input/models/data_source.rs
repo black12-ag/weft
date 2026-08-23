@@ -168,6 +168,9 @@ pub fn query_model_picker_choices<'a>(
         llm_preferences,
         choices.into_iter().collect(),
     );
+    // Every model+thinking variant stays listed (the list is searchable, so
+    // typing "terra high" filters instantly); the composer model-button popup
+    // additionally offers the collapsed one-row-per-model + reasoning sidecar.
     let query_text = query_text.trim().to_lowercase();
     let mut results = choices
         .into_iter()

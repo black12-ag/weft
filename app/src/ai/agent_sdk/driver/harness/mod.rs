@@ -250,7 +250,35 @@ impl fmt::Debug for HarnessKind {
 /// it.
 pub(crate) fn harness_kind(harness: Harness) -> Result<HarnessKind, AgentDriverError> {
     match harness {
-        Harness::Oz => Ok(HarnessKind::Oz),
+        Harness::Oz => {
+            // In the local-only (skip_login) build, never route to Warp's hosted
+            // agent (which needs the server + credits). If a local CLI agent is
+            // installed, redirect Oz to it so EVERY conversation runs on the
+            // user's CLI subscription with zero backend calls. This is the single
+            // choke point all conversations pass through.
+            if cfg!(feature = "skip_login") {
+                let home = std::env::var("HOME").unwrap_or_default();
+                let has = |n: &str| {
+                    std::path::Path::new(&format!("{home}/.local/bin/{n}")).exists()
+                        || std::path::Path::new(&format!("{home}/.homebrew/bin/{n}")).exists()
+                        || std::path::Path::new(&format!("/opt/homebrew/bin/{n}")).exists()
+                        || std::path::Path::new(&format!("/usr/local/bin/{n}")).exists()
+                };
+                if has("claude") {
+                    log::info!("harness_kind: redirecting Oz -> local Claude CLI");
+                    return Ok(HarnessKind::ThirdParty(Box::new(ClaudeHarness)));
+                }
+                if has("codex") {
+                    log::info!("harness_kind: redirecting Oz -> local Codex CLI");
+                    return Ok(HarnessKind::ThirdParty(Box::new(CodexHarness)));
+                }
+                if has("gemini") {
+                    log::info!("harness_kind: redirecting Oz -> local Gemini CLI");
+                    return Ok(HarnessKind::ThirdParty(Box::new(GeminiHarness)));
+                }
+            }
+            Ok(HarnessKind::Oz)
+        }
         Harness::Claude => Ok(HarnessKind::ThirdParty(Box::new(ClaudeHarness))),
         Harness::Codex => Ok(HarnessKind::ThirdParty(Box::new(CodexHarness))),
         Harness::OpenCode => Ok(HarnessKind::Unsupported(Harness::OpenCode)),

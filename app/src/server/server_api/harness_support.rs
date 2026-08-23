@@ -487,6 +487,14 @@ impl ServerApi {
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
 impl HarnessSupportClient for ServerApi {
     async fn create_external_conversation(&self, format: &str) -> Result<AIConversationId> {
+        // Local-only mode: never contact Warp's backend to open a conversation.
+        // Mint the id locally so CLI harnesses (Claude / Codex / Gemini) spawn
+        // with zero server dependency (no credits, no login, no cloud).
+        if cfg!(feature = "skip_login") {
+            let _ = format;
+            return Ok(AIConversationId::new());
+        }
+
         let response: CreateExternalConversationResponse = self
             .post_public_api(
                 "harness-support/external-conversation",

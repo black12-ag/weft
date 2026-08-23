@@ -1052,11 +1052,11 @@ osc_hyperlinks = []
 [package.metadata.bundle.bin.warp-oss]
 category = "public.app-category.developer-tools"
 copyright = "© 2025, Denver Technologies, Inc"
-identifier = "dev.warp.WarpOss"
-name = "WarpOss"
+identifier = "com.black12ag.weft"
+name = "Weft"
 resources = ["assets/onboarding"]
 icon = ["channels/oss/icon/no-padding/512x512.png", "channels/oss/icon/no-padding/icon.ico"]
-short_description = "The open-source, cloud-backed terminal for individuals and teams."
+short_description = "One terminal, all your CLI subscriptions — no login."
 
 [package.metadata.bundle.bin.stable]
 category = "public.app-category.developer-tools"

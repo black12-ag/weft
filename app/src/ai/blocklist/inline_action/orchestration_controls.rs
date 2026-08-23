@@ -270,6 +270,11 @@ fn oz_model_menu_items<A: OrchestrationControlAction, V: View>(
 ) -> Vec<MenuItem<DropdownAction>> {
     let llm_prefs = LLMPreferences::as_ref(ctx);
     let all_choices: Vec<_> = llm_prefs.get_base_llm_choices_for_agent_mode(ctx).collect();
+    // Collapse reasoning variants to ONE clean row per model (deduped by base
+    // name) so the list isn't crowded with every thinking level. The thinking
+    // level is chosen afterwards in the composer model-button popup, which shows
+    // the reasoning submenu on the side.
+    let mut seen_bases = std::collections::HashSet::new();
     let ordered_choices: Vec<_> = rows
         .iter()
         .filter_map(|row| {
@@ -278,14 +283,15 @@ fn oz_model_menu_items<A: OrchestrationControlAction, V: View>(
                 .copied()
                 .find(|llm| llm.id.to_string() == row.id)
         })
+        .filter(|llm| seen_bases.insert(llm.base_model_name().to_string()))
         .collect();
     available_model_menu_items(
         ordered_choices,
         move |llm| DropdownAction::select_action_and_close(A::model_changed(llm.id.to_string())),
         None,
         None,
-        false,
-        false,
+        true,
+        true,
         ctx,
     )
 }

@@ -484,6 +484,12 @@ pub(super) fn maybe_add_buy_credits_banner(
     is_input_at_top: bool,
     app: &AppContext,
 ) {
+    // Local-only build: all AI runs on the user's local CLI (their subscription),
+    // never Warp credits — so never show the "out of credits / use your own API
+    // key" banner.
+    if cfg!(feature = "skip_login") {
+        return;
+    }
     let workspaces = UserWorkspaces::as_ref(app);
     let can_purchase_addon_credits = workspaces
         .purchase_policy_for_team(workspaces.team_for_view_handle(input_view_handle, app))
