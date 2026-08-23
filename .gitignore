@@ -70,3 +70,7 @@ __pycache__/
 # Project notes
 .note/
 .claude/scheduled_tasks.lock
+
+# Weft website build artifacts
+weft/node_modules/
+weft/dist/
