@@ -83,11 +83,18 @@ This project is **actively updated** — expect frequent changes as the CLI inte
 - **⬇️ Download:** [github.com/black12-ag/weft/releases/latest](https://github.com/black12-ag/weft/releases/latest)
 - **📦 Source:** [github.com/black12-ag/weft](https://github.com/black12-ag/weft) — `git clone` and `./install.sh`
 - **🐛 Issues / requests:** [github.com/black12-ag/weft/issues](https://github.com/black12-ag/weft/issues)
-- **👤 Author:** [github.com/black12-ag](https://github.com/black12-ag)
 - **🧠 Memory:** works out of the box locally; for Claude it also integrates with [claude-mem](https://github.com/thedotmack/claude-mem) if you have it installed.
 - **🏗️ Built on:** [Warp OSS](https://github.com/warpdotdev/warp) — Warp built the terminal, UI/UX, and backend; Weft changes the AI layer to run on your local CLIs.
 
-> Have a website or socials to link here? Add them — this section is where the announcement and community links live.
+### Author — Munir Ayub
+
+Full-stack, mobile & AI developer.
+
+- 🌐 Portfolio: [portfolio.ethio-viral.com](https://portfolio.ethio-viral.com)
+- 💻 GitHub: [@black12-ag](https://github.com/black12-ag)
+- 💼 LinkedIn: [munir-m](https://www.linkedin.com/in/munir-m-3a23353a1)
+- 📱 WhatsApp: [wa.me/251907806267](https://wa.me/251907806267)
+- ✈️ Telegram: [@muay011](https://t.me/muay011)
 
 ## License
 
