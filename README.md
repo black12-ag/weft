@@ -1,10 +1,17 @@
 # Weft — one terminal, all your CLI subscriptions
 
+[![Latest release](https://img.shields.io/github/v/release/black12-ag/weft?label=download)](https://github.com/black12-ag/weft/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/black12-ag/weft/total)](https://github.com/black12-ag/weft/releases)
+[![Stars](https://img.shields.io/github/stars/black12-ag/weft?style=social)](https://github.com/black12-ag/weft/stargazers)
+[![License: MIT/AGPL](https://img.shields.io/badge/license-MIT%2FAGPL-blue)](#license)
+
 > In weaving, the *weft* is the thread that crosses the *warp*. A fork of [Warp's open-source terminal](https://github.com/warpdotdev/warp) that weaves Claude Code, OpenAI Codex, and Google Gemini into one chat.
 
 Its AI chat runs on **your own local CLI agents** using the subscriptions you already pay for.
 
 **No Warp account. No sign-in. No API keys *needed*. No Warp servers. Ever.**
+
+**⭐ If Weft is useful to you, [star the repo](https://github.com/black12-ag/weft) — it helps others find it.** · **[⬇️ Download the latest release](https://github.com/black12-ag/weft/releases/latest)**
 
 > Weft is **CLI-only today** — models run through your CLI subscriptions, so you don't need to pay for API keys. (Bringing your *own* API key as an alternative to a CLI subscription is planned but not in this version.)
 
@@ -70,6 +77,17 @@ Add another CLI by extending `build_local_cli_invocation` (how to call it) and `
 - **No-login build** — sign-in prompts and credit banners removed (the `skip_login` feature and related gates).
 
 This project is **actively updated** — expect frequent changes as the CLI integration, memory, and settings evolve.
+
+## Links & credits
+
+- **⬇️ Download:** [github.com/black12-ag/weft/releases/latest](https://github.com/black12-ag/weft/releases/latest)
+- **📦 Source:** [github.com/black12-ag/weft](https://github.com/black12-ag/weft) — `git clone` and `./install.sh`
+- **🐛 Issues / requests:** [github.com/black12-ag/weft/issues](https://github.com/black12-ag/weft/issues)
+- **👤 Author:** [github.com/black12-ag](https://github.com/black12-ag)
+- **🧠 Memory:** works out of the box locally; for Claude it also integrates with [claude-mem](https://github.com/thedotmack/claude-mem) if you have it installed.
+- **🏗️ Built on:** [Warp OSS](https://github.com/warpdotdev/warp) — Warp built the terminal, UI/UX, and backend; Weft changes the AI layer to run on your local CLIs.
+
+> Have a website or socials to link here? Add them — this section is where the announcement and community links live.
 
 ## License
 
