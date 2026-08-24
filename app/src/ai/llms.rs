@@ -1263,6 +1263,43 @@ impl LLMPreferences {
             let home = std::env::var("HOME").unwrap_or_default();
             let binpath = |name: &str| format!("{home}/.local/bin/{name}");
             let has = |name: &str| std::path::Path::new(&binpath(name)).exists();
+            // Broader detection across all the dirs Weft searches for CLIs.
+            let home2 = home.clone();
+            let bin_exists = move |name: &str| {
+                [
+                    format!("{home2}/.local/bin/{name}"),
+                    format!("{home2}/.homebrew/bin/{name}"),
+                    format!("{home2}/.opencode/bin/{name}"),
+                    format!("{home2}/.bun/bin/{name}"),
+                    format!("{home2}/bin/{name}"),
+                    format!("/opt/homebrew/bin/{name}"),
+                    format!("/usr/local/bin/{name}"),
+                ]
+                .iter()
+                .any(|p| std::path::Path::new(p).exists())
+            };
+            // Only list a CLI's models in the picker when it's actually signed in
+            // (the Settings page lists all supported CLIs with a Connect button).
+            let home3 = home.clone();
+            let logged_in = move |cli: &str| -> bool {
+                let h = &home3;
+                match cli {
+                    "claude" => std::fs::read_to_string(format!("{h}/.claude.json"))
+                        .map(|s| s.contains("\"oauthAccount\""))
+                        .unwrap_or(false),
+                    "codex" => std::path::Path::new(&format!("{h}/.codex/auth.json")).exists(),
+                    "gemini" => {
+                        std::path::Path::new(&format!("{h}/.gemini/oauth_creds.json")).exists()
+                    }
+                    "opencode" => {
+                        std::path::Path::new(&format!("{h}/.local/share/opencode/auth.json"))
+                            .exists()
+                    }
+                    "cursor" => std::env::var("CURSOR_API_KEY").is_ok(),
+                    "ollama" => true, // local, no login
+                    _ => false,
+                }
+            };
 
             let mut out: Vec<LLMInfo> = Vec::new();
             let mut add = |agent: &str, label: &str, model: &str, effort: Option<&str>| {
@@ -1309,7 +1346,7 @@ impl LLMPreferences {
 
             // Gemini / agy — has a real "list all models" command, so fetch the
             // complete live list automatically. Falls back to known models.
-            if has("agy") {
+            if has("agy") && logged_in("gemini") {
                 let mut any = false;
                 if let Some(text) = run(&binpath("agy"), &["models"], 6) {
                     for line in text.lines() {
@@ -1341,7 +1378,7 @@ impl LLMPreferences {
 
             // Claude Code — no list command exists; expose the aliases (latest of
             // each tier) plus the known versioned model ids.
-            if has("claude") {
+            if has("claude") && logged_in("claude") {
                 for m in [
                     "default",
                     "fable",
@@ -1364,7 +1401,7 @@ impl LLMPreferences {
             }
 
             // Codex — no list command; use its configured model plus known ones.
-            if has("codex") {
+            if has("codex") && logged_in("codex") {
                 let mut models: Vec<String> = Vec::new();
                 if let Ok(text) = std::fs::read_to_string(format!("{home}/.codex/config.toml")) {
                     for line in text.lines() {
@@ -1409,6 +1446,53 @@ impl LLMPreferences {
                     for eff in efforts {
                         add("codex", "Codex", m, Some(eff));
                     }
+                }
+            }
+
+            // ---- Additional auto-detected CLIs ----
+            // OpenCode — runs its configured provider/model.
+            if bin_exists("opencode") && logged_in("opencode") {
+                add("opencode", "OpenCode", "default", None);
+            }
+            // Cursor CLI (binary `cursor-agent`).
+            if bin_exists("cursor-agent") && logged_in("cursor") {
+                for m in ["default", "sonnet-4.5-thinking", "gpt-5"] {
+                    add("cursor", "Cursor", m, None);
+                }
+            }
+            // GitHub Copilot CLI.
+            if bin_exists("copilot") && logged_in("copilot") {
+                add("copilot", "Copilot", "default", None);
+            }
+            // Ollama (local) — one entry per installed model (`ollama list`).
+            if bin_exists("ollama") && logged_in("ollama") {
+                let ollama = if std::path::Path::new(&format!("{home}/.homebrew/bin/ollama")).exists()
+                {
+                    format!("{home}/.homebrew/bin/ollama")
+                } else {
+                    "ollama".to_string()
+                };
+                let mut any = false;
+                if let Some(text) = run(&ollama, &["list"], 6) {
+                    for line in text.lines().skip(1) {
+                        if let Some(name) = line.split_whitespace().next() {
+                            if !name.is_empty() {
+                                add("ollama", "Ollama", name, None);
+                                any = true;
+                            }
+                        }
+                    }
+                }
+                if !any {
+                    add("ollama", "Ollama", "llama3", None);
+                }
+            }
+            // User-defined CLIs from ~/.weft/clis.toml.
+            for r in crate::ai::agent::api::weft_user_cli_recipes() {
+                if bin_exists(&r.binary) {
+                    let label: &'static str = Box::leak(r.label.clone().into_boxed_str());
+                    let agent: &'static str = Box::leak(r.key.clone().into_boxed_str());
+                    add(agent, label, "default", None);
                 }
             }
 

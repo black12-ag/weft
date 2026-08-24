@@ -1208,17 +1208,29 @@ fn build_local_cli_invocation(
                 ],
             )
         }
+        // NOTE: for gemini/agy, `--print`/`--prompt` takes the prompt as its
+        // VALUE, so `--model` must come first and the prompt must be the value
+        // right after `--print` — otherwise `--print` eats `--model` as the
+        // prompt (exit 2: "--print took --model as its prompt").
         "gemini" => {
             let gemini = resolve_local_cli_binary("gemini");
             if std::path::Path::new(&gemini).is_absolute() {
-                (gemini, vec!["--prompt".to_string(), prompt.to_string()])
+                (
+                    gemini,
+                    vec![
+                        "--model".to_string(),
+                        model.to_string(),
+                        "--prompt".to_string(),
+                        prompt.to_string(),
+                    ],
+                )
             } else {
                 (
                     resolve_local_cli_binary("agy"),
                     vec![
-                        "--print".to_string(),
                         "--model".to_string(),
                         model.to_string(),
+                        "--print".to_string(),
                         prompt.to_string(),
                     ],
                 )
@@ -1227,14 +1239,148 @@ fn build_local_cli_invocation(
         "agy" => (
             resolve_local_cli_binary("agy"),
             vec![
-                "--print".to_string(),
                 "--model".to_string(),
                 model.to_string(),
+                "--print".to_string(),
                 prompt.to_string(),
             ],
         ),
-        other => (resolve_local_cli_binary(other), vec![prompt.to_string()]),
+        // ---- Additional auto-detected CLIs (see cli_recipe_models in llms.rs) ----
+        // OpenCode: `opencode run "<prompt>"` (optional `-m <model>`).
+        "opencode" => {
+            let mut args = vec!["run".to_string(), prompt.to_string()];
+            if model != "default" && !model.is_empty() {
+                args.push("-m".to_string());
+                args.push(model.to_string());
+            }
+            (resolve_local_cli_binary("opencode"), args)
+        }
+        // Cursor CLI (binary `cursor-agent`): claude-like `-p ... --model ...`.
+        "cursor" => {
+            let mut args = vec![
+                "-p".to_string(),
+                prompt.to_string(),
+                "--output-format".to_string(),
+                "text".to_string(),
+            ];
+            if model != "default" && !model.is_empty() {
+                args.push("--model".to_string());
+                args.push(model.to_string());
+            }
+            (resolve_local_cli_binary("cursor-agent"), args)
+        }
+        // Ollama (local): `ollama run <model> "<prompt>"`.
+        "ollama" => (
+            resolve_local_cli_binary("ollama"),
+            vec!["run".to_string(), model.to_string(), prompt.to_string()],
+        ),
+        // GitHub Copilot CLI: `copilot -p "<prompt>" --allow-all-tools`.
+        "copilot" => (
+            resolve_local_cli_binary("copilot"),
+            vec![
+                "-p".to_string(),
+                prompt.to_string(),
+                "--allow-all-tools".to_string(),
+            ],
+        ),
+        // Fallback for a CLI defined in ~/.weft/clis.toml (or unknown): pass the
+        // prompt via the recipe's prompt flag if any, else positionally.
+        other => build_extra_cli_invocation(other, model, prompt),
     }
+}
+
+/// A user-extensible CLI "recipe" — the built-in extras plus anything the user
+/// adds in `~/.weft/clis.toml`. Drives both the model list (llms.rs) and the
+/// invocation here.
+#[derive(Clone)]
+pub struct WeftCliRecipe {
+    pub key: String,
+    pub label: String,
+    pub binary: String,
+    /// Optional subcommand (e.g. "run").
+    pub subcommand: Option<String>,
+    /// Prompt flag (e.g. "-p"); None => prompt is positional.
+    pub prompt_flag: Option<String>,
+    /// Model flag (e.g. "--model"); None => model not passed.
+    pub model_flag: Option<String>,
+    /// Extra fixed args appended after the prompt.
+    pub extra_args: Vec<String>,
+    pub login_command: Option<String>,
+}
+
+/// Reads `~/.weft/clis.toml` and returns user-defined CLI recipes. Format:
+/// ```toml
+/// [[cli]]
+/// key = "mycli"
+/// label = "My CLI"
+/// binary = "mycli"
+/// prompt_flag = "-p"      # optional; omit for positional prompt
+/// model_flag = "--model"  # optional
+/// subcommand = "chat"     # optional
+/// login_command = "mycli login"   # optional
+/// ```
+pub fn weft_user_cli_recipes() -> Vec<WeftCliRecipe> {
+    let home = match std::env::var("HOME") {
+        Ok(h) => h,
+        Err(_) => return Vec::new(),
+    };
+    let path = std::path::PathBuf::from(home).join(".weft/clis.toml");
+    let text = match std::fs::read_to_string(&path) {
+        Ok(t) => t,
+        Err(_) => return Vec::new(),
+    };
+    let value: toml::Value = match text.parse() {
+        Ok(v) => v,
+        Err(_) => return Vec::new(),
+    };
+    let Some(arr) = value.get("cli").and_then(|c| c.as_array()) else {
+        return Vec::new();
+    };
+    let s = |t: &toml::Value, k: &str| t.get(k).and_then(|v| v.as_str()).map(|s| s.to_string());
+    arr.iter()
+        .filter_map(|t| {
+            Some(WeftCliRecipe {
+                key: s(t, "key")?,
+                label: s(t, "label").unwrap_or_else(|| s(t, "key").unwrap_or_default()),
+                binary: s(t, "binary")?,
+                subcommand: s(t, "subcommand"),
+                prompt_flag: s(t, "prompt_flag"),
+                model_flag: s(t, "model_flag"),
+                extra_args: t
+                    .get("extra_args")
+                    .and_then(|v| v.as_array())
+                    .map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect())
+                    .unwrap_or_default(),
+                login_command: s(t, "login_command"),
+            })
+        })
+        .collect()
+}
+
+/// Builds args for a CLI defined by a `~/.weft/clis.toml` recipe.
+fn build_extra_cli_invocation(agent: &str, model: &str, prompt: &str) -> (String, Vec<String>) {
+    if let Some(r) = weft_user_cli_recipes().into_iter().find(|r| r.key == agent) {
+        let mut args = Vec::new();
+        if let Some(sub) = &r.subcommand {
+            args.push(sub.clone());
+        }
+        if let Some(mf) = &r.model_flag {
+            if model != "default" && !model.is_empty() {
+                args.push(mf.clone());
+                args.push(model.to_string());
+            }
+        }
+        match &r.prompt_flag {
+            Some(pf) => {
+                args.push(pf.clone());
+                args.push(prompt.to_string());
+            }
+            None => args.push(prompt.to_string()),
+        }
+        args.extend(r.extra_args.clone());
+        return (resolve_local_cli_binary(&r.binary), args);
+    }
+    (resolve_local_cli_binary(agent), vec![prompt.to_string()])
 }
 
 /// Resolves a CLI binary against the common local install dirs, returning an
@@ -1244,6 +1390,9 @@ fn resolve_local_cli_binary(name: &str) -> String {
     if let Ok(home) = std::env::var("HOME") {
         dirs.push(std::path::PathBuf::from(&home).join(".local/bin"));
         dirs.push(std::path::PathBuf::from(&home).join(".homebrew/bin"));
+        dirs.push(std::path::PathBuf::from(&home).join(".opencode/bin"));
+        dirs.push(std::path::PathBuf::from(&home).join(".bun/bin"));
+        dirs.push(std::path::PathBuf::from(&home).join("bin"));
     }
     dirs.push(std::path::PathBuf::from("/opt/homebrew/bin"));
     dirs.push(std::path::PathBuf::from("/usr/local/bin"));

@@ -425,7 +425,7 @@ impl View for AgentViewZeroStateBlock {
             }
 
             HeaderProps {
-                title: "New Warp Agent conversation".into(),
+                title: "New Weft conversation".into(),
                 description: AgentViewDescription::PlainText(vec![local_description.into()]),
                 icon: IconWithStatusVariant::OzAgent {
                     status: None,
@@ -474,6 +474,43 @@ impl View for AgentViewZeroStateBlock {
                 Container::new(item).with_margin_bottom(8.).finish()
             }
         }));
+
+        // Weft links: the repo (with a star nudge) + the author's contact, so
+        // anyone who opens the app can reach the project and its maker.
+        if !self.origin.is_cloud_agent() {
+            let bg = theme.background();
+            let links_color = theme.sub_text_color(bg).into_solid();
+            let weft_links = FormattedText::new([FormattedTextLine::Line(vec![
+                FormattedTextFragment::plain_text("Weft  ·  "),
+                FormattedTextFragment::hyperlink(
+                    "⭐ Star on GitHub",
+                    "https://github.com/black12-ag/weft",
+                ),
+                FormattedTextFragment::plain_text("  ·  by Munir: "),
+                FormattedTextFragment::hyperlink("Portfolio", "https://portfolio.ethio-viral.com"),
+                FormattedTextFragment::plain_text("  ·  "),
+                FormattedTextFragment::hyperlink("WhatsApp", "https://wa.me/251907806267"),
+                FormattedTextFragment::plain_text("  ·  "),
+                FormattedTextFragment::hyperlink("Telegram", "https://t.me/muay011"),
+            ])]);
+            content.add_children([Container::new(
+                FormattedTextElement::new(
+                    weft_links,
+                    appearance.monospace_font_size(),
+                    appearance.ui_font_family(),
+                    appearance.monospace_font_family(),
+                    links_color,
+                    HighlightedHyperlink::default(),
+                )
+                .with_hyperlink_font_color(theme.accent().into_solid())
+                .register_default_click_handlers(|url, _, ctx| {
+                    ctx.open_url(&url.url);
+                })
+                .finish(),
+            )
+            .with_margin_top(14.)
+            .finish()]);
+        }
         let content = content.finish();
 
         let show_bottom_border = !self.origin.is_cloud_agent();

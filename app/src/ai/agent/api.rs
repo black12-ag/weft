@@ -15,6 +15,7 @@ pub use convert_from::{
 };
 use futures_lite::Stream;
 pub use r#impl::generate_multi_agent_output;
+pub use r#impl::{WeftCliRecipe, weft_user_cli_recipes};
 use mcp::TemplatableMCPServerInfo;
 use serde::Serialize;
 use warp_core::channel::{Channel, ChannelState};

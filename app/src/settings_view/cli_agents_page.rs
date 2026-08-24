@@ -492,6 +492,43 @@ const CLI_CONNECTIONS: &[CliConnection] = &[
             std::path::Path::new(&format!("{home}/.gemini/oauth_creds.json")).exists()
         },
     },
+    CliConnection {
+        label: "OpenCode",
+        binary: "opencode",
+        alt_binary: None,
+        login_command: "opencode auth login",
+        logout_command: None,
+        logged_in: || {
+            // opencode stores auth under ~/.local/share/opencode.
+            let home = std::env::var("HOME").unwrap_or_default();
+            std::path::Path::new(&format!("{home}/.local/share/opencode/auth.json")).exists()
+        },
+    },
+    CliConnection {
+        label: "Cursor",
+        binary: "cursor-agent",
+        alt_binary: None,
+        login_command: "cursor-agent login",
+        logout_command: Some("cursor-agent logout"),
+        logged_in: || std::env::var("CURSOR_API_KEY").is_ok(),
+    },
+    CliConnection {
+        label: "GitHub Copilot",
+        binary: "copilot",
+        alt_binary: None,
+        login_command: "copilot",
+        logout_command: None,
+        logged_in: || false,
+    },
+    CliConnection {
+        label: "Ollama (local)",
+        binary: "ollama",
+        alt_binary: None,
+        // Local — no login. It's ready whenever the binary exists.
+        login_command: "ollama list",
+        logout_command: None,
+        logged_in: || true,
+    },
 ];
 
 /// "Connected CLIs" section: one row per supported CLI showing install + login
@@ -499,14 +536,14 @@ const CLI_CONNECTIONS: &[CliConnection] = &[
 /// terminal. The provider's flow handles credentials; Warp never sees them.
 #[derive(Default)]
 struct CLIConnectionsWidget {
-    connect_button_mouse_states: [MouseStateHandle; 3],
+    connect_button_mouse_states: [MouseStateHandle; 8],
 }
 
 impl SettingsWidget for CLIConnectionsWidget {
     type View = CLIAgentsPageView;
 
     fn search_terms(&self) -> &str {
-        "connect cli agents claude codex gemini login sign in status connected"
+        "connect cli agents claude codex gemini opencode cursor copilot ollama login sign in status connected"
     }
 
     fn render(
