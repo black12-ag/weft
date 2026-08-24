@@ -22,7 +22,7 @@ export function usePlatform() {
       let isLinux = /Linux/i.test(navPlatform) || /Linux/i.test(ua)
 
       if (isMac) {
-        let isArm = true // Default for modern Macs
+        let isArm = true
         if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
           try {
             const hints = await navigator.userAgentData.getHighEntropyValues(['architecture', 'bitness'])
@@ -30,7 +30,7 @@ export function usePlatform() {
               isArm = false
             }
           } catch (e) {
-            // fallback
+            // fallback to Apple Silicon default
           }
         }
 
@@ -85,33 +85,25 @@ export function usePlatform() {
     const targetUrl = overrideUrl || platform.url
     const targetFilename = overrideFilename || platform.filename
 
-    // Trigger confetti celebration
+    // Trigger instant confetti celebration
     try {
       confetti({
-        particleCount: 70,
-        spread: 60,
+        particleCount: 80,
+        spread: 70,
         origin: { y: 0.75 },
         colors: ['#3B82F6', '#06B6D4', '#8B5CF6', '#10B981']
       })
     } catch (e) {}
 
-    // If it's a direct downloadable file (e.g. .dmg)
+    // Direct browser download trigger
     if (targetUrl && targetUrl.startsWith('http')) {
       const link = document.createElement('a')
       link.href = targetUrl
       link.setAttribute('download', targetFilename)
-      link.setAttribute('target', '_blank')
-      link.setAttribute('rel', 'noopener noreferrer')
-      link.style.display = 'none'
       document.body.appendChild(link)
       link.click()
-      setTimeout(() => {
-        if (link.parentNode) {
-          link.parentNode.removeChild(link)
-        }
-      }, 1500)
-    } else {
-      // If anchor link (e.g. #download for coming soon platforms)
+      document.body.removeChild(link)
+    } else if (targetUrl && targetUrl.startsWith('#')) {
       const targetElement = document.querySelector(targetUrl)
       if (targetElement) {
         targetElement.scrollIntoView({ behavior: 'smooth' })
