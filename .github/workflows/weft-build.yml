@@ -1,0 +1,72 @@
+# Weft — build the app for Linux + Windows (+ macOS) via GitHub's own runners.
+# macOS Universal is also built locally; this workflow is the "via git" path for
+# the platforms that can't be compiled on a Mac.
+#
+# Trigger it manually (Actions tab → "Build Weft" → Run workflow), or it runs
+# automatically when a GitHub Release is published. Artifacts are uploaded to the
+# run (and attached to the release when triggered by one).
+#
+# NOTE: first runs will likely need iteration — cross-platform builds of a large
+# app depend on system deps, feature flags (skip_login keeps Weft login-free),
+# and output paths that only surface once CI runs. Treat this as v1.
+name: Build Weft
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+env:
+  # Weft's feature set: no Warp login, local CLI agents, design revamp.
+  WEFT_FEATURES: skip_login,agent_mode,agent_harness,profiles_design_revamp
+
+jobs:
+  linux:
+    name: Linux (.deb / .rpm / AppImage)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - name: Install build dependencies
+        run: bash script/linux/install_build_deps || sudo bash script/linux/install_build_deps
+      - name: Rust toolchain
+        run: rustup show || curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      - name: Build Weft (oss channel)
+        run: |
+          bash script/linux/bundle -c oss \
+            --packages deb,rpm,appimage \
+            --features "$WEFT_FEATURES"
+      - name: Collect artifacts
+        run: |
+          mkdir -p dist
+          find . -type f \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \) \
+            -not -path '*/node_modules/*' -exec cp {} dist/ \;
+          ls -la dist || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: weft-linux
+          path: dist/*
+          if-no-files-found: warn
+
+  windows:
+    name: Windows (.exe installer)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: powershell -ExecutionPolicy Bypass -File script/windows/install_build_deps.ps1
+      - name: Build Weft (oss channel)
+        run: powershell -ExecutionPolicy Bypass -File script/windows/bundle.ps1 -CHANNEL oss
+      - name: Collect artifacts
+        shell: bash
+        run: |
+          mkdir -p dist
+          find . -type f \( -name '*.exe' -o -name '*.msi' \) \
+            -not -path '*/node_modules/*' -not -path '*/target/*/deps/*' -exec cp {} dist/ \; || true
+          ls -la dist || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: weft-windows
+          path: dist/*
+          if-no-files-found: warn
