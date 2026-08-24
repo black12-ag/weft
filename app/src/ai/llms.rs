@@ -1446,20 +1446,18 @@ impl LLMPreferences {
                 }
             }
 
-            // Claude Code — no list command exists; expose the aliases (latest of
-            // each tier) plus the known versioned model ids.
+            // Claude Code — no list command exists; expose the KNOWN VERSIONED
+            // model ids only (every one carries a number), so there's no vague
+            // "default"/"opus" row where you can't tell which model it is. All of
+            // these are verified to work with `claude --model <id>`.
             if has("claude") && logged_in("claude") {
                 for m in [
-                    "default",
-                    "fable",
-                    "opus",
-                    "sonnet",
-                    "haiku",
                     "claude-opus-4-8",
                     "claude-opus-4-7",
                     "claude-opus-4-6",
                     "claude-sonnet-4-6",
                     "claude-haiku-4-5",
+                    "claude-fable-5",
                 ] {
                     // Claude CLI supports `--effort` (low|medium|high|xhigh|max),
                     // so every model automatically gets its full thinking range as

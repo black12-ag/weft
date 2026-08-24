@@ -414,6 +414,7 @@ async fn run_local_cli_stream(
             let mut output_acc = String::new();
             let mut produced_output = false;
             let started = std::time::Instant::now();
+            let last_emit = std::cell::Cell::new(std::time::Instant::now());
             run_claude_streaming(
                 &model,
                 effort.as_deref(),
@@ -429,9 +430,19 @@ async fn run_local_cli_stream(
                         &mut reasoning_acc,
                         &mut output_acc,
                         &mut produced_output,
+                        &last_emit,
                     )
                 },
             );
+            // Flush the final answer (the last throttled tokens) as one upsert.
+            if produced_output {
+                emit_message(
+                    output_id.clone(),
+                    api::message::Message::AgentOutput(api::message::AgentOutput {
+                        text: output_acc.clone(),
+                    }),
+                );
+            }
             finish_reasoning(&emit_message, &reasoning_id, &reasoning_acc, started);
             final_answer = output_acc;
             if !produced_output {
@@ -455,6 +466,7 @@ async fn run_local_cli_stream(
             let mut output_acc = String::new();
             let mut produced_output = false;
             let started = std::time::Instant::now();
+            let last_emit = std::cell::Cell::new(std::time::Instant::now());
             run_codex_streaming(
                 &model,
                 effort.as_deref(),
@@ -471,9 +483,19 @@ async fn run_local_cli_stream(
                         &mut reasoning_acc,
                         &mut output_acc,
                         &mut produced_output,
+                        &last_emit,
                     )
                 },
             );
+            // Flush the final answer (the last throttled tokens) as one upsert.
+            if produced_output {
+                emit_message(
+                    output_id.clone(),
+                    api::message::Message::AgentOutput(api::message::AgentOutput {
+                        text: output_acc.clone(),
+                    }),
+                );
+            }
             finish_reasoning(&emit_message, &reasoning_id, &reasoning_acc, started);
             final_answer = output_acc;
             if !produced_output {
@@ -563,30 +585,26 @@ fn accumulate_block(
     reasoning_acc: &mut String,
     output_acc: &mut String,
     produced_output: &mut bool,
+    last_emit: &std::cell::Cell<std::time::Instant>,
 ) {
-    // Complete segments (Reasoning/Output) get a blank-line separator between
-    // them; deltas (ReasoningDelta/OutputDelta) are raw token chunks appended
-    // directly for live typing.
-    let emit_reasoning = |acc: &str| {
-        emit_message(
-            reasoning_id.to_string(),
-            api::message::Message::AgentReasoning(api::message::AgentReasoning {
-                reasoning: acc.to_string(),
-                finished_duration: None,
-            }),
-        );
-    };
+    // Live token deltas arrive hundreds of times a second. We ALWAYS accumulate,
+    // but only push an updated block to the UI at most every ~80ms (a stable id
+    // means each push upserts the same block). This keeps the render smooth and,
+    // crucially, avoids flooding the shared-session/remote-control replay with a
+    // per-token event storm. `finish_reasoning` + the post-stream flush send the
+    // final complete text, so nothing is lost.
+    // Reserved for a future live-typing mode once the shared-session/remote-control
+    // replay dedupes upserts by id.
+    let _ = (reasoning_id, output_id, last_emit);
     match block {
         CliBlock::Reasoning(s) => {
             if !reasoning_acc.is_empty() {
                 reasoning_acc.push_str("\n\n");
             }
             reasoning_acc.push_str(&s);
-            emit_reasoning(reasoning_acc);
         }
         CliBlock::ReasoningDelta(s) => {
             reasoning_acc.push_str(&s);
-            emit_reasoning(reasoning_acc);
         }
         CliBlock::Output(s) => {
             *produced_output = true;
@@ -594,22 +612,10 @@ fn accumulate_block(
                 output_acc.push_str("\n\n");
             }
             output_acc.push_str(&s);
-            emit_message(
-                output_id.to_string(),
-                api::message::Message::AgentOutput(api::message::AgentOutput {
-                    text: output_acc.clone(),
-                }),
-            );
         }
         CliBlock::OutputDelta(s) => {
             *produced_output = true;
             output_acc.push_str(&s);
-            emit_message(
-                output_id.to_string(),
-                api::message::Message::AgentOutput(api::message::AgentOutput {
-                    text: output_acc.clone(),
-                }),
-            );
         }
         CliBlock::Usage(s) => {
             emit_message(
