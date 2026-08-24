@@ -238,6 +238,24 @@ fn render_provider_label(label: &'static str, appearance: &Appearance) -> Box<dy
     .finish()
 }
 
+/// A small "$X in · $Y out per 1M tokens" line shown under the spec bars for
+/// local-CLI models, so the real per-token price is visible in the picker.
+pub fn render_model_price_note(
+    input_per_1m: f32,
+    output_per_1m: f32,
+    app: &AppContext,
+) -> Box<dyn Element> {
+    let appearance = Appearance::as_ref(app);
+    let text = format!("${input_per_1m:.2} in · ${output_per_1m:.2} out  per 1M tokens");
+    Text::new(
+        text,
+        appearance.ui_font_family(),
+        inline_styles::font_size(appearance),
+    )
+    .with_color(appearance.theme().disabled_ui_text_color().into())
+    .finish()
+}
+
 pub fn render_model_spec_header(
     title: &str,
     description: &str,

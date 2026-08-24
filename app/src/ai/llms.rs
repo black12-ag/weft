@@ -302,6 +302,36 @@ pub fn cli_model_spec(model: &str) -> LLMSpec {
     }
 }
 
+/// Approximate published price per 1M tokens (input, output) in USD for a local-
+/// CLI model, shown under the spec bars so you can see the real cost. Returns
+/// None for local/open-weight models (no per-token cost) and unknown models
+/// (so we never show a made-up number). Keyed off substrings of the model name.
+pub fn cli_model_price(name: &str) -> Option<(f32, f32)> {
+    let m = name.to_lowercase();
+    let price = if m.contains("opus") {
+        (15.0, 75.0)
+    } else if m.contains("sonnet") {
+        (3.0, 15.0)
+    } else if m.contains("haiku") {
+        (0.80, 4.0)
+    } else if m.contains("fable") {
+        (1.0, 5.0)
+    } else if m.contains("oss") {
+        return None; // local / open-weight — no per-token cost
+    } else if m.contains("flash") {
+        (0.30, 2.50)
+    } else if m.contains("gemini") && m.contains("pro") {
+        (1.25, 10.0)
+    } else if m.contains("gemini") {
+        (0.30, 2.50)
+    } else if m.contains("gpt-5") || m.contains("codex") || m.contains("gpt") {
+        (1.25, 10.0)
+    } else {
+        return None; // unknown (e.g. account "default") — don't guess
+    };
+    Some(price)
+}
+
 /// The host where an LLM can be routed to.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum LLMModelHost {

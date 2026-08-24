@@ -25,19 +25,36 @@ Its AI chat runs on **your own local CLI agents** using the subscriptions you al
 - **A brain** — every exchange is saved as markdown (to your Obsidian vault's `Weft/` folder if you have one, else `~/.weft/brain/`), one note per project, and recalled automatically in later sessions. All models share it. `memory on` / `memory off` / `memory clear`.
 - **Connect a CLI from Settings** — Settings → Agents → Third party CLI agents shows each CLI (installed? signed in?) with a **Connect** button that runs the provider's own login (`claude auth login`, `codex login`, `gemini`). Credentials go straight to the provider; this app never sees them.
 
-## Install (download)
+## Install
 
-1. Download `Weft.dmg` from the Releases tab.
-2. Open it, drag **Weft** to Applications.
-3. First launch: right-click the app → **Open** (it's ad-hoc signed, so macOS asks once). Or run:
-   ```
-   xattr -dr com.apple.quarantine /Applications/Weft.app
-   ```
-4. Install / sign in to at least one CLI (each uses its own subscription):
-   - Claude Code: `npm i -g @anthropic-ai/claude-code` then `claude auth login`
-   - Codex: `npm i -g @openai/codex` then `codex login`
-   - Gemini: `npm i -g @google/gemini-cli` then run `gemini` once
-5. Open Weft → type `/agent` (or use the chat) → pick a model from the model button → go.
+### macOS — Intel & Apple Silicon (one Universal build)
+
+**One command (recommended — installs with no Gatekeeper warning):**
+```
+curl -fsSL https://raw.githubusercontent.com/black12-ag/weft/master/install-mac.sh | bash
+```
+
+Or download `Weft.dmg` from the [latest release](https://github.com/black12-ag/weft/releases/latest), drag **Weft** to Applications, then right-click → **Open** (ad-hoc signed, so macOS asks once) — or run `xattr -dr com.apple.quarantine /Applications/Weft.app`.
+
+### Linux — build from source (one command)
+```
+curl -fsSL https://raw.githubusercontent.com/black12-ag/weft/master/install-linux.sh | bash
+```
+Builds on Debian/Ubuntu, Fedora, and Arch. Prebuilt `.deb` / `.rpm` / AppImage coming soon.
+
+### Windows — build from source (one command, PowerShell)
+```
+irm https://raw.githubusercontent.com/black12-ag/weft/master/install-windows.ps1 | iex
+```
+Prebuilt `.exe` installer coming soon.
+
+### Then
+Install / sign in to at least one CLI (each uses its own subscription):
+- Claude Code: `npm i -g @anthropic-ai/claude-code` then `claude auth login`
+- Codex: `npm i -g @openai/codex` then `codex login`
+- Gemini: `npm i -g @google/gemini-cli` then run `gemini` once
+
+Open Weft → use the chat → pick a model from the model button → go. Manage your **MCP servers** and see each model's **specs (intelligence / speed / cost + $ per 1M tokens)** in **Settings → Third party CLI agents**.
 
 ## Build from source
 

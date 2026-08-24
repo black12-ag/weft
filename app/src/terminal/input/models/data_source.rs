@@ -24,7 +24,7 @@ use warpui::{
 use super::model_spec_scores::{
     CUSTOM_MODEL_ROUTER_DESCRIPTION, CUSTOM_MODEL_ROUTER_TITLE, CostRow, MODEL_SPECS_DESCRIPTION,
     MODEL_SPECS_TITLE, ModelSpecScoresLayout, REASONING_LEVEL_DESCRIPTION, REASONING_LEVEL_TITLE,
-    render_model_spec_header, render_model_spec_scores,
+    render_model_price_note, render_model_spec_header, render_model_spec_scores,
 };
 use crate::ai::custom_model_routers::is_custom_router_id;
 use crate::ai::execution_profiles::model_menu_items::is_auto;
@@ -685,6 +685,18 @@ impl SearchItem for ModelSearchItem {
         let mut column = Flex::column()
             .with_child(Container::new(header).with_margin_bottom(12.).finish())
             .with_child(scores);
+
+        // For local-CLI models, show the real $/1M token price under the bars.
+        if self.display_text.contains("(CLI)")
+            && let Some((input_per_1m, output_per_1m)) =
+                crate::ai::llms::cli_model_price(&self.display_text)
+        {
+            column.add_child(
+                Container::new(render_model_price_note(input_per_1m, output_per_1m, app))
+                    .with_margin_top(8.)
+                    .finish(),
+            );
+        }
 
         if self.disable_reason.as_ref() == Some(&DisableReason::RequiresUpgrade) {
             let upgrade_url =
