@@ -274,14 +274,16 @@ async fn run_local_cli_stream(
     // the right project instead of some default location.
     let cwd: Option<String> = params.session_context.current_working_directory().clone();
 
-    // Chat commands: `tools on|off` (fast vs full-MCP) and `memory on|off|clear`.
+    // Chat commands: `tools on|off` (fast vs full-MCP), `memory on|off|clear`,
+    // and `usage` (session tokens/cost + how to see plan limits).
     let tools_toggle = parse_tools_command(&new_query);
     let memory_cmd = parse_memory_command(&new_query);
+    let usage_cmd = parse_usage_command(&new_query);
     let user_question = new_query.clone();
 
     // Prepend this project's saved memory so every model recalls past sessions
     // (real questions only, not the toggle commands themselves).
-    let prompt = if tools_toggle.is_none() && memory_cmd.is_none() {
+    let prompt = if tools_toggle.is_none() && memory_cmd.is_none() && !usage_cmd {
         let mem = read_memory(cwd.as_deref());
         if mem.is_empty() {
             prompt
@@ -399,6 +401,13 @@ async fn run_local_cli_stream(
             emit_message(
                 fresh_id(),
                 api::message::Message::AgentOutput(api::message::AgentOutput { text }),
+            );
+        } else if usage_cmd {
+            emit_message(
+                fresh_id(),
+                api::message::Message::AgentOutput(api::message::AgentOutput {
+                    text: usage_message(),
+                }),
             );
         } else if prompt.trim().is_empty() {
             emit_message(
@@ -976,6 +985,29 @@ fn parse_tools_command(query: &str) -> Option<bool> {
         "tools off" | "/tools off" | "disable tools" | "fast" | "fast mode" => Some(false),
         _ => None,
     }
+}
+
+/// True when the message is a `usage` / `limits` request.
+fn parse_usage_command(query: &str) -> bool {
+    matches!(
+        query.trim().to_lowercase().as_str(),
+        "usage" | "/usage" | "limits" | "/limits" | "my usage" | "check usage" | "usage limits"
+    )
+}
+
+/// The `usage` reply: Weft shows tokens/cost per reply; for live plan limits the
+/// CLIs' own screens are the accurate source of truth, and Weft is a terminal so
+/// the user can run them right here.
+fn usage_message() -> String {
+    "📊 Usage & limits\n\n\
+     Weft shows tokens + cost after every reply (the 🔢 line under each answer).\n\n\
+     For your plan limits (5-hour / weekly), run each CLI's own live screen right \
+     here in Weft — they are the accurate source of truth:\n\n\
+     • Claude — run `claude`, then type `/usage`  → 5-hour + weekly limits, per model\n\
+     • Codex  — run `codex`, then type `/status`\n\
+     • Gemini — run `gemini` (or `agy`), then type `/stats`\n\n\
+     Tip: press esc to drop back to the terminal, run the CLI, check your limits, then come back."
+        .to_string()
 }
 
 // ------------------------- MCP servers (Step 1) -----------------------------
