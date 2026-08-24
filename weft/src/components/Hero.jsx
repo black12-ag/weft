@@ -1,11 +1,13 @@
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Download, Github, Check, Terminal, Cpu, ShieldCheck, Zap, ChevronDown } from 'lucide-react'
+import { Download, Github, Check, Terminal, Cpu, ShieldCheck, Zap, ChevronDown, Apple } from 'lucide-react'
+import { usePlatform } from '../utils/usePlatform'
 import WeftLogo from './WeftLogo'
 
 export default function Hero() {
   const [selectedCLI, setSelectedCLI] = useState('claude')
   const [isThinkingOpen, setIsThinkingOpen] = useState(true)
+  const platform = usePlatform()
 
   const cliConfigs = {
     claude: {
@@ -36,6 +38,19 @@ export default function Hero() {
 
   const current = cliConfigs[selectedCLI]
 
+  const renderPlatformIcon = () => {
+    if (platform.icon === 'apple') {
+      return <Apple className="w-4 h-4 fill-current" />
+    } else if (platform.icon === 'windows') {
+      return (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M3 5.557L10.364 4.5v6.98H3V5.557zm0 6.943h7.364v6.98L3 18.443V12.5zm8.455-8.138L21 3v8.48h-9.545V4.362zM21 12.5V21l-9.545-1.362v-7.138H21z"/>
+        </svg>
+      )
+    }
+    return <Terminal className="w-4 h-4" />
+  }
+
   return (
     <section className="pt-16 pb-12 sm:pt-20 sm:pb-16 bg-white overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -60,28 +75,45 @@ export default function Hero() {
             Weft runs Claude Code, Codex, and Gemini in one chat — using the subscriptions you already pay for. No login. No account. No API keys.
           </p>
 
-          {/* Action CTAs */}
-          <div className="flex flex-wrap items-center gap-4 text-xs font-semibold tracking-wider uppercase">
-            <motion.a
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              href="#download"
-              className="bg-black text-white px-6 py-3.5 rounded-md hover:bg-neutral-800 transition-colors shadow-sm inline-flex items-center gap-2"
-            >
-              <Download className="w-4 h-4" />
-              <span>Download for macOS</span>
-            </motion.a>
-            <motion.a
-              whileHover={{ scale: 1.03, x: 2 }}
-              whileTap={{ scale: 0.97 }}
-              href="https://github.com/black12-ag/weft"
-              target="_blank"
-              rel="noreferrer"
-              className="text-black border border-gray-300 hover:border-black px-5 py-3.5 rounded-md font-semibold transition-colors flex items-center gap-2"
-            >
-              <Github className="w-4 h-4" />
-              <span>View on GitHub</span>
-            </motion.a>
+          {/* Auto-detected Dynamic Action CTAs */}
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-4 text-xs font-semibold tracking-wider uppercase">
+              
+              {/* Dynamic Auto-Download Button */}
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => platform.triggerDirectDownload()}
+                className="bg-black text-white px-6 py-3.5 rounded-md hover:bg-neutral-800 transition-colors shadow-sm inline-flex items-center gap-2.5 cursor-pointer"
+                title={`Direct download for ${platform.label}`}
+              >
+                {renderPlatformIcon()}
+                <span className="text-left font-bold">{platform.label}</span>
+                <Download className="w-3.5 h-3.5 opacity-70 ml-0.5" />
+              </motion.button>
+
+              {/* View on GitHub Button */}
+              <motion.a
+                whileHover={{ scale: 1.03, x: 2 }}
+                whileTap={{ scale: 0.97 }}
+                href="https://github.com/black12-ag/weft"
+                target="_blank"
+                rel="noreferrer"
+                className="text-black border border-gray-300 hover:border-black px-5 py-3.5 rounded-md font-semibold transition-colors flex items-center gap-2"
+              >
+                <Github className="w-4 h-4" />
+                <span>View on GitHub</span>
+              </motion.a>
+            </div>
+
+            {/* Architecture / Platform switcher hint */}
+            <div className="flex items-center gap-3 text-[11px] text-gray-500 font-sans">
+              <span className="text-emerald-600 font-medium font-mono">● Auto-detected {platform.sublabel}</span>
+              <span>·</span>
+              <a href="#download" className="hover:text-black underline underline-offset-2 transition-colors">
+                Looking for another OS or Intel architecture?
+              </a>
+            </div>
           </div>
         </motion.div>
 
@@ -128,7 +160,7 @@ export default function Hero() {
                 <span className="text-gray-400 text-[11px] font-mono mr-1">Active CLI:</span>
                 <button
                   onClick={() => setSelectedCLI('claude')}
-                  className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1.5 ${
+                  className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                     selectedCLI === 'claude' 
                       ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' 
                       : 'text-gray-400 hover:text-gray-200 bg-white/5'
@@ -139,7 +171,7 @@ export default function Hero() {
                 </button>
                 <button
                   onClick={() => setSelectedCLI('codex')}
-                  className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1.5 ${
+                  className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                     selectedCLI === 'codex' 
                       ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
                       : 'text-gray-400 hover:text-gray-200 bg-white/5'
@@ -150,7 +182,7 @@ export default function Hero() {
                 </button>
                 <button
                   onClick={() => setSelectedCLI('gemini')}
-                  className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1.5 ${
+                  className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                     selectedCLI === 'gemini' 
                       ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40' 
                       : 'text-gray-400 hover:text-gray-200 bg-white/5'
