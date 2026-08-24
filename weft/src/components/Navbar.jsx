@@ -12,9 +12,7 @@ export default function Navbar() {
         {/* Left: Brand Logo & Links */}
         <div className="flex items-center gap-8">
           <a href="#" className="flex items-center gap-2 group">
-            <div className="text-black group-hover:scale-105 transition-transform">
-              <WeftLogo className="w-5 h-5" />
-            </div>
+            <img src="/weft-icon.jpg" alt="Weft" className="w-7 h-7 rounded-md group-hover:scale-105 transition-transform" />
             <span className="font-bold text-xl tracking-tight text-black font-sans">weft</span>
           </a>
 

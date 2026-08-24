@@ -802,7 +802,9 @@ fn run_claude_streaming(
         args.push(String::new());
         args.push("--strict-mcp-config".to_string());
         args.push("--mcp-config".to_string());
-        args.push("{\"mcpServers\":{}}".to_string());
+        // Only the servers you left enabled in Settings (default: all). MCP tools
+        // work, but the multi-GB plugins/skills scan is still skipped.
+        args.push(selected_claude_mcp_config());
     }
     let mut cmd = std::process::Command::new(resolve_local_cli_binary("claude"));
     cmd.args(&args);
@@ -968,6 +970,155 @@ fn parse_tools_command(query: &str) -> Option<bool> {
         "tools off" | "/tools off" | "disable tools" | "fast" | "fast mode" => Some(false),
         _ => None,
     }
+}
+
+// ------------------------- MCP servers (Step 1) -----------------------------
+// Each CLI (claude/codex/gemini) configures its own MCP servers. Weft lists them
+// in Settings with per-server on/off toggles (default: ON). Enabled servers are
+// passed to the CLI EXPLICITLY, so their MCP tools work while the multi-GB
+// plugins/skills scan is still skipped in fast mode. The slow part is not the
+// scan — it is each server booting per call — so a future warm MCP host (Step 2)
+// will keep them running; for now, toggling heavy servers off keeps replies fast.
+
+/// The MCP selection file: a JSON array of disabled "cli/server" keys. Absent or
+/// empty => every server is on.
+fn mcp_selection_path() -> Option<std::path::PathBuf> {
+    let home = std::env::var("HOME").ok()?;
+    Some(std::path::PathBuf::from(home).join(".warposs/mcp_disabled.json"))
+}
+
+/// The set of disabled "cli/server" keys (default: empty = all servers on).
+fn mcp_disabled_set() -> std::collections::HashSet<String> {
+    let mut set = std::collections::HashSet::new();
+    if let Some(path) = mcp_selection_path()
+        && let Ok(text) = std::fs::read_to_string(&path)
+        && let Ok(serde_json::Value::Array(items)) =
+            serde_json::from_str::<serde_json::Value>(&text)
+    {
+        for item in items {
+            if let Some(key) = item.as_str() {
+                set.insert(key.to_string());
+            }
+        }
+    }
+    set
+}
+
+/// Whether a CLI's MCP server is enabled. On by default — only an explicit entry
+/// in the selection file turns one off.
+pub fn mcp_server_enabled(cli: &str, server: &str) -> bool {
+    !mcp_disabled_set().contains(&format!("{cli}/{server}"))
+}
+
+/// Turns one CLI's MCP server on/off, persisting the choice to the selection file.
+pub fn set_mcp_server_enabled(cli: &str, server: &str, on: bool) {
+    let Some(path) = mcp_selection_path() else {
+        return;
+    };
+    let mut set = mcp_disabled_set();
+    let key = format!("{cli}/{server}");
+    if on {
+        set.remove(&key);
+    } else {
+        set.insert(key);
+    }
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    let mut list: Vec<String> = set.into_iter().collect();
+    list.sort();
+    if let Ok(text) = serde_json::to_string_pretty(&list) {
+        let _ = std::fs::write(&path, text);
+    }
+}
+
+/// The MCP server names a CLI has configured (read from that CLI's own config).
+/// Drives the Settings list. `cli` is "claude", "codex" or "gemini".
+pub fn discover_mcp_servers(cli: &str) -> Vec<String> {
+    let Ok(home) = std::env::var("HOME") else {
+        return Vec::new();
+    };
+    let json_keys = |path: String| -> Vec<String> {
+        std::fs::read_to_string(path)
+            .ok()
+            .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+            .and_then(|v| {
+                v.get("mcpServers")
+                    .and_then(|m| m.as_object())
+                    .map(|o| o.keys().cloned().collect())
+            })
+            .unwrap_or_default()
+    };
+    let mut names = match cli {
+        "claude" => json_keys(format!("{home}/.claude.json")),
+        "gemini" => json_keys(format!("{home}/.gemini/settings.json")),
+        "codex" => std::fs::read_to_string(format!("{home}/.codex/config.toml"))
+            .ok()
+            .and_then(|s| s.parse::<toml::Value>().ok())
+            .and_then(|v| {
+                v.get("mcp_servers")
+                    .and_then(|m| m.as_table())
+                    .map(|t| t.keys().cloned().collect())
+            })
+            .unwrap_or_default(),
+        _ => Vec::new(),
+    };
+    names.sort();
+    names
+}
+
+/// Claude's `--mcp-config` value for fast mode: only the ENABLED servers from
+/// `~/.claude.json`, so their MCP tools are available without the multi-GB scan.
+fn selected_claude_mcp_config() -> String {
+    let empty = "{\"mcpServers\":{}}".to_string();
+    let Ok(home) = std::env::var("HOME") else {
+        return empty;
+    };
+    let Ok(text) = std::fs::read_to_string(format!("{home}/.claude.json")) else {
+        return empty;
+    };
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
+        return empty;
+    };
+    let Some(servers) = value.get("mcpServers").and_then(|m| m.as_object()) else {
+        return empty;
+    };
+    let mut enabled = serde_json::Map::new();
+    for (name, def) in servers {
+        if mcp_server_enabled("claude", name) {
+            enabled.insert(name.clone(), def.clone());
+        }
+    }
+    serde_json::json!({ "mcpServers": enabled }).to_string()
+}
+
+/// The `[mcp_servers.*]` TOML for Codex's clean home: only the ENABLED servers,
+/// copied from the user's real `~/.codex/config.toml`. Empty string => none.
+fn selected_codex_mcp_toml() -> String {
+    let Ok(home) = std::env::var("HOME") else {
+        return String::new();
+    };
+    let Ok(text) = std::fs::read_to_string(format!("{home}/.codex/config.toml")) else {
+        return String::new();
+    };
+    let Ok(toml::Value::Table(root)) = text.parse::<toml::Value>() else {
+        return String::new();
+    };
+    let Some(toml::Value::Table(servers)) = root.get("mcp_servers") else {
+        return String::new();
+    };
+    let mut enabled = toml::value::Table::new();
+    for (name, def) in servers {
+        if mcp_server_enabled("codex", name) {
+            enabled.insert(name.clone(), def.clone());
+        }
+    }
+    if enabled.is_empty() {
+        return String::new();
+    }
+    let mut wrapper = toml::value::Table::new();
+    wrapper.insert("mcp_servers".to_string(), toml::Value::Table(enabled));
+    toml::to_string_pretty(&toml::Value::Table(wrapper)).unwrap_or_default()
 }
 
 // ------------------------- Memory ("brain") ---------------------------------
@@ -1139,11 +1290,16 @@ fn prepare_codex_home() -> Option<String> {
     }
     let clean = std::path::PathBuf::from(&home).join(".warposs/codex-home");
     std::fs::create_dir_all(&clean).ok()?;
-    // No `mcp_servers` table => codex starts no MCP servers.
-    let _ = std::fs::write(
-        clean.join("config.toml"),
-        "# WarpOss: minimal codex home (no MCP servers, for fast startup).\n",
-    );
+    // Only the MCP servers you enabled in Settings (default: all). With none
+    // enabled, codex starts no MCP servers and stays fastest.
+    let mut config =
+        String::from("# WarpOss: codex home with only the MCP servers enabled in Settings.\n");
+    let servers_toml = selected_codex_mcp_toml();
+    if !servers_toml.is_empty() {
+        config.push('\n');
+        config.push_str(&servers_toml);
+    }
+    let _ = std::fs::write(clean.join("config.toml"), config);
     let link = clean.join("auth.json");
     // Symlink the real auth so codex reads/refreshes the user's actual login.
     if std::fs::symlink_metadata(&link).is_err() {

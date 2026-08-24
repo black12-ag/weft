@@ -50,7 +50,7 @@ export default function Footer() {
         
         {/* Brand Bar */}
         <div className="flex items-center gap-2 mb-10">
-          <WeftLogo className="w-5 h-5 text-black" />
+          <img src="/weft-icon.jpg" alt="Weft" className="w-7 h-7 rounded-md" />
           <span className="font-bold text-lg text-black font-sans tracking-tight">weft</span>
         </div>
 
