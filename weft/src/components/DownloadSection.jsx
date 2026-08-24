@@ -4,12 +4,12 @@ import { Apple, Terminal, Copy, Check, Github } from 'lucide-react'
 import confetti from 'canvas-confetti'
 
 export default function DownloadSection() {
-  const [copiedMac, setCopiedMac] = useState(false)
+  const [copied, setCopied] = useState('')
 
-  const handleCopy = (text) => {
+  const handleCopy = (text, key = 'mac') => {
     navigator.clipboard.writeText(text)
-    setCopiedMac(true)
-    setTimeout(() => setCopiedMac(false), 2000)
+    setCopied(key)
+    setTimeout(() => setCopied(''), 2000)
   }
 
   const triggerConfetti = () => {
@@ -86,7 +86,7 @@ export default function DownloadSection() {
                 className="text-gray-400 hover:text-black shrink-0 cursor-pointer"
                 title="Copy command"
               >
-                {copiedMac ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied === 'mac' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
               </motion.button>
             </div>
           </motion.div>
@@ -106,12 +106,22 @@ export default function DownloadSection() {
             </div>
 
             <div className="border border-gray-200 rounded-xl p-4 bg-gray-50/50 space-y-1 opacity-70">
-              <div className="font-bold text-sm text-black">Linux Packages</div>
-              <div className="text-xs text-gray-500">.deb, .rpm, .tar.zst & AppImage builds in progress</div>
+              <div className="font-bold text-sm text-black">Prebuilt packages — coming soon</div>
+              <div className="text-xs text-gray-500">.deb, .rpm, .tar.zst & AppImage will land on GitHub Releases</div>
             </div>
 
-            <div className="p-3.5 border border-gray-200 rounded-xl bg-white text-xs text-gray-500 font-mono">
-              Builds for Ubuntu, Debian, Fedora, and Arch Linux will be published on GitHub Releases.
+            <div className="text-xs font-semibold text-gray-700">Or build it now — one command:</div>
+            <div className="border border-gray-200 rounded-xl p-3.5 flex items-center justify-between text-xs font-mono bg-white hover:border-gray-300 transition-colors">
+              <span className="text-gray-800 truncate mr-2">$ curl -fsSL https://raw.githubusercontent.com/black12-ag/weft/master/install-linux.sh | bash</span>
+              <motion.button
+                whileHover={{ scale: 1.15 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => handleCopy('curl -fsSL https://raw.githubusercontent.com/black12-ag/weft/master/install-linux.sh | bash', 'linux')}
+                className="text-gray-400 hover:text-black shrink-0 cursor-pointer"
+                title="Copy command"
+              >
+                {copied === 'linux' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+              </motion.button>
             </div>
           </motion.div>
 
@@ -132,12 +142,22 @@ export default function DownloadSection() {
             </div>
 
             <div className="border border-gray-200 rounded-xl p-4 bg-gray-50/50 space-y-1 opacity-70">
-              <div className="font-bold text-sm text-black">Windows Executable</div>
-              <div className="text-xs text-gray-500">Native Windows 11/10 installer in progress</div>
+              <div className="font-bold text-sm text-black">Prebuilt installer — coming soon</div>
+              <div className="text-xs text-gray-500">.exe for x64 & ARM64 will land on GitHub Releases</div>
             </div>
 
-            <div className="p-3.5 border border-gray-200 rounded-xl bg-white text-xs text-gray-500 font-mono">
-              Windows installer will be available for x64 and ARM64 architectures.
+            <div className="text-xs font-semibold text-gray-700">Or build it now — one command (PowerShell):</div>
+            <div className="border border-gray-200 rounded-xl p-3.5 flex items-center justify-between text-xs font-mono bg-white hover:border-gray-300 transition-colors">
+              <span className="text-gray-800 truncate mr-2">&gt; irm https://raw.githubusercontent.com/black12-ag/weft/master/install-windows.ps1 | iex</span>
+              <motion.button
+                whileHover={{ scale: 1.15 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => handleCopy('irm https://raw.githubusercontent.com/black12-ag/weft/master/install-windows.ps1 | iex', 'win')}
+                className="text-gray-400 hover:text-black shrink-0 cursor-pointer"
+                title="Copy command"
+              >
+                {copied === 'win' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+              </motion.button>
             </div>
           </motion.div>
 
