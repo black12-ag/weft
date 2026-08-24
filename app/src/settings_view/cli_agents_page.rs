@@ -129,6 +129,7 @@ impl CLIAgentsPageView {
     fn build_page() -> PageType<Self> {
         let widgets: Vec<Box<dyn SettingsWidget<View = Self>>> = vec![
             Box::new(CLIConnectionsWidget::default()),
+            Box::new(McpServersWidget::default()),
             Box::new(CLIAgentWidget::default()),
             Box::new(CLIAgentAutoToggleRichInputWidget::default()),
             Box::new(CLIAgentAutoOpenRichInputWidget::default()),
@@ -246,6 +247,12 @@ pub enum CLIAgentsPageAction {
         pattern: String,
         agent: Option<CLIAgent>,
     },
+    /// Turn one CLI's MCP server on/off from the MCP servers section.
+    ToggleMcpServer {
+        cli: String,
+        server: String,
+        on: bool,
+    },
 }
 
 impl TypedActionView for CLIAgentsPageView {
@@ -314,6 +321,10 @@ impl TypedActionView for CLIAgentsPageView {
                 AISettings::handle(ctx).update(ctx, |settings, ctx| {
                     settings.set_cli_agent_for_command(pattern, *agent, ctx);
                 });
+            }
+            CLIAgentsPageAction::ToggleMcpServer { cli, server, on } => {
+                crate::ai::agent::api::set_mcp_server_enabled(cli, server, *on);
+                ctx.notify();
             }
         }
     }
@@ -617,6 +628,129 @@ impl SettingsWidget for CLIConnectionsWidget {
                 }),
             ));
         }
+        column.finish()
+    }
+}
+
+/// The CLIs whose MCP servers we surface, in display order.
+const MCP_CLIS: &[(&str, &str)] = &[
+    ("claude", "Claude Code"),
+    ("codex", "OpenAI Codex"),
+    ("gemini", "Google Gemini"),
+];
+
+/// "MCP servers" section: every MCP server each CLI has configured, each with an
+/// On/Off button. Enabled servers are passed to the CLI so their tools work in
+/// fast mode (the multi-GB plugins/skills scan stays skipped). Default: OFF, so
+/// speed is never regressed — switch on the servers you want; each adds a little
+/// startup per message until the warm MCP host (Step 2) keeps them running.
+#[derive(Default)]
+struct McpServersWidget {
+    // One hover/click state per row. Capped at 32 — std arrays derive Default up
+    // to 32, and users rarely configure more MCP servers than that across CLIs.
+    toggle_button_mouse_states: [MouseStateHandle; 32],
+}
+
+impl SettingsWidget for McpServersWidget {
+    type View = CLIAgentsPageView;
+
+    fn search_terms(&self) -> &str {
+        "mcp servers model context protocol plugins tools claude codex gemini enable disable on off brave aws"
+    }
+
+    fn render(
+        &self,
+        _view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let mut column = Flex::column().with_main_axis_size(MainAxisSize::Min);
+
+        column.add_child(
+            appearance
+                .ui_builder()
+                .span("MCP servers".to_string())
+                .with_style(UiComponentStyles {
+                    font_size: Some(CONTENT_FONT_SIZE),
+                    ..Default::default()
+                })
+                .build()
+                .finish(),
+        );
+
+        let mut idx = 0usize;
+        let mut any = false;
+        for (cli, cli_label) in MCP_CLIS {
+            let servers = crate::ai::agent::api::discover_mcp_servers(cli);
+            if servers.is_empty() {
+                continue;
+            }
+            any = true;
+            for server in servers {
+                if idx >= self.toggle_button_mouse_states.len() {
+                    break;
+                }
+                let enabled = crate::ai::agent::api::mcp_server_enabled(cli, &server);
+                let (status, button_label) = if enabled {
+                    ("On", "Turn off")
+                } else {
+                    ("Off", "Turn on")
+                };
+                let cli_owned = cli.to_string();
+                let server_owned = server.clone();
+                let new_state = !enabled;
+                let button = appearance
+                    .ui_builder()
+                    .button(
+                        ButtonVariant::Secondary,
+                        self.toggle_button_mouse_states[idx].clone(),
+                    )
+                    .with_text_label(button_label.to_owned())
+                    .build()
+                    .on_click(move |ctx, _, _| {
+                        ctx.dispatch_typed_action(CLIAgentsPageAction::ToggleMcpServer {
+                            cli: cli_owned.clone(),
+                            server: server_owned.clone(),
+                            on: new_state,
+                        });
+                    })
+                    .finish();
+
+                column.add_child(render_body_item::<CLIAgentsPageAction>(
+                    format!("{server}  ·  {cli_label}"),
+                    None,
+                    LocalOnlyIconState::Hidden,
+                    ToggleState::Enabled,
+                    appearance,
+                    button,
+                    Some(format!(
+                        "{status}. This server's tools are {} in the chat. Each enabled server adds a little startup time until the warm MCP host lands.",
+                        if enabled { "available" } else { "hidden" }
+                    )),
+                ));
+                idx += 1;
+            }
+        }
+
+        if !any {
+            column.add_child(
+                appearance
+                    .ui_builder()
+                    .paragraph(
+                        "No MCP servers found. Add them to your CLI's own config \
+                         (~/.claude.json, ~/.codex/config.toml, ~/.gemini/settings.json) \
+                         and they'll appear here.",
+                    )
+                    .with_style(UiComponentStyles {
+                        font_size: Some(appearance.ui_font_size()),
+                        font_color: Some(styles::description_font_color(true, app).into()),
+                        ..Default::default()
+                    })
+                    .build()
+                    .finish(),
+            );
+        }
+
         column.finish()
     }
 }

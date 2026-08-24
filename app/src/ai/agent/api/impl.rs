@@ -974,21 +974,22 @@ fn parse_tools_command(query: &str) -> Option<bool> {
 
 // ------------------------- MCP servers (Step 1) -----------------------------
 // Each CLI (claude/codex/gemini) configures its own MCP servers. Weft lists them
-// in Settings with per-server on/off toggles (default: ON). Enabled servers are
-// passed to the CLI EXPLICITLY, so their MCP tools work while the multi-GB
-// plugins/skills scan is still skipped in fast mode. The slow part is not the
-// scan — it is each server booting per call — so a future warm MCP host (Step 2)
-// will keep them running; for now, toggling heavy servers off keeps replies fast.
+// in Settings with per-server on/off toggles. Default: OFF, so speed is never
+// regressed — the fast baseline (no MCP, no scan) is unchanged until you opt in.
+// Turning a server ON passes it to the CLI EXPLICITLY, so its tools work while
+// the multi-GB plugins/skills scan stays skipped. The slow part is not the scan
+// — it is each server booting per call — so the warm MCP host (Step 2) will keep
+// enabled servers running and can then flip the default to on-and-fast.
 
-/// The MCP selection file: a JSON array of disabled "cli/server" keys. Absent or
-/// empty => every server is on.
+/// The MCP selection file: a JSON array of ENABLED "cli/server" keys. Absent or
+/// empty => no MCP servers (the fast baseline, unchanged).
 fn mcp_selection_path() -> Option<std::path::PathBuf> {
     let home = std::env::var("HOME").ok()?;
-    Some(std::path::PathBuf::from(home).join(".warposs/mcp_disabled.json"))
+    Some(std::path::PathBuf::from(home).join(".warposs/mcp_enabled.json"))
 }
 
-/// The set of disabled "cli/server" keys (default: empty = all servers on).
-fn mcp_disabled_set() -> std::collections::HashSet<String> {
+/// The set of enabled "cli/server" keys (default: empty = none on).
+fn mcp_enabled_set() -> std::collections::HashSet<String> {
     let mut set = std::collections::HashSet::new();
     if let Some(path) = mcp_selection_path()
         && let Ok(text) = std::fs::read_to_string(&path)
@@ -1004,10 +1005,10 @@ fn mcp_disabled_set() -> std::collections::HashSet<String> {
     set
 }
 
-/// Whether a CLI's MCP server is enabled. On by default — only an explicit entry
-/// in the selection file turns one off.
+/// Whether a CLI's MCP server is enabled. OFF by default — only servers you
+/// switched on in Settings are passed to the CLI, so replies stay fast.
 pub fn mcp_server_enabled(cli: &str, server: &str) -> bool {
-    !mcp_disabled_set().contains(&format!("{cli}/{server}"))
+    mcp_enabled_set().contains(&format!("{cli}/{server}"))
 }
 
 /// Turns one CLI's MCP server on/off, persisting the choice to the selection file.
@@ -1015,12 +1016,12 @@ pub fn set_mcp_server_enabled(cli: &str, server: &str, on: bool) {
     let Some(path) = mcp_selection_path() else {
         return;
     };
-    let mut set = mcp_disabled_set();
+    let mut set = mcp_enabled_set();
     let key = format!("{cli}/{server}");
     if on {
-        set.remove(&key);
-    } else {
         set.insert(key);
+    } else {
+        set.remove(&key);
     }
     if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);

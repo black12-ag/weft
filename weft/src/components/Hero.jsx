@@ -1,10 +1,40 @@
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
-import { MoreHorizontal, Check } from 'lucide-react'
+import { Download, Github, Check, Terminal, Cpu, ShieldCheck, Zap, ChevronDown } from 'lucide-react'
 import WeftLogo from './WeftLogo'
 
 export default function Hero() {
-  const [approved, setApproved] = useState(false)
+  const [selectedCLI, setSelectedCLI] = useState('claude')
+  const [isThinkingOpen, setIsThinkingOpen] = useState(true)
+
+  const cliConfigs = {
+    claude: {
+      name: 'Claude Code',
+      model: 'claude-3-7-sonnet',
+      reasoning: 'Reasoning: High',
+      badge: 'Local CLI Active',
+      color: 'text-amber-600 bg-amber-50 border-amber-200',
+      thought: 'Analyzing AST structure in crates/warpui/src/search.rs. Verified workspace fuzzy indexing. Drafting patch.',
+    },
+    codex: {
+      name: 'OpenAI Codex',
+      model: 'gpt-4.5-preview',
+      reasoning: 'Thinking: Max',
+      badge: 'Local CLI Active',
+      color: 'text-emerald-600 bg-emerald-50 border-emerald-200',
+      thought: 'Evaluating command palette query matcher with sub-millisecond lookup latency.',
+    },
+    gemini: {
+      name: 'Google Gemini',
+      model: 'gemini-2.0-flash-thinking',
+      reasoning: 'Reasoning: Fast',
+      badge: 'Local CLI Active',
+      color: 'text-blue-600 bg-blue-50 border-blue-200',
+      thought: 'Applying multi-threaded indexing cache for fuzzy command selection.',
+    }
+  }
+
+  const current = cliConfigs[selectedCLI]
 
   return (
     <section className="pt-16 pb-12 sm:pt-20 sm:pb-16 bg-white overflow-hidden">
@@ -15,14 +45,19 @@ export default function Hero() {
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-          className="max-w-4xl mb-10"
+          className="max-w-4xl mb-12"
         >
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-gray-200 bg-gray-50 text-xs font-semibold text-gray-700 mb-6">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>100% Free & Open Source · Runs on your own machine</span>
+          </div>
+
           <h1 className="text-4xl sm:text-6xl lg:text-[68px] font-bold text-black tracking-[-0.03em] leading-[1.06] mb-6">
-            The open platform for <br />
-            automating development
+            One terminal. <br />
+            All your CLI subscriptions.
           </h1>
           <p className="text-lg sm:text-xl text-gray-700 font-normal max-w-2xl leading-relaxed mb-8">
-            Infrastructure to build, measure, and interact with agents across your SDLC — so you ship more and spend less.
+            Weft runs Claude Code, Codex, and Gemini in one chat — using the subscriptions you already pay for. No login. No account. No API keys.
           </p>
 
           {/* Action CTAs */}
@@ -30,18 +65,22 @@ export default function Hero() {
             <motion.a
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
-              href="#factories"
-              className="bg-black text-white px-5 py-3 rounded-md hover:bg-neutral-800 transition-colors shadow-sm inline-block"
+              href="#download"
+              className="bg-black text-white px-6 py-3.5 rounded-md hover:bg-neutral-800 transition-colors shadow-sm inline-flex items-center gap-2"
             >
-              Build your factory
+              <Download className="w-4 h-4" />
+              <span>Download for macOS</span>
             </motion.a>
             <motion.a
               whileHover={{ scale: 1.03, x: 2 }}
               whileTap={{ scale: 0.97 }}
-              href="#download"
-              className="text-black hover:text-gray-600 px-3 py-3 font-semibold transition-colors flex items-center gap-1.5"
+              href="https://github.com/black12-ag/weft"
+              target="_blank"
+              rel="noreferrer"
+              className="text-black border border-gray-300 hover:border-black px-5 py-3.5 rounded-md font-semibold transition-colors flex items-center gap-2"
             >
-              Download Weft Terminal
+              <Github className="w-4 h-4" />
+              <span>View on GitHub</span>
             </motion.a>
           </div>
         </motion.div>
@@ -51,204 +90,168 @@ export default function Hero() {
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-          className="relative mt-8 rounded-3xl p-4 sm:p-8 overflow-hidden bg-gradient-to-br from-[#FFD3B6]/60 via-[#E4A5FF]/40 to-[#A0C4FF]/50 border border-gray-200/80 shadow-2xl"
+          className="relative mt-4 rounded-3xl p-3 sm:p-6 overflow-hidden bg-gradient-to-br from-[#FFD3B6]/60 via-[#E4A5FF]/40 to-[#A0C4FF]/50 border border-gray-200/80 shadow-2xl"
         >
           
-          {/* Main Dashboard Container */}
-          <div className="relative max-w-5xl mx-auto bg-white/95 rounded-2xl border border-black/10 shadow-xl overflow-hidden backdrop-blur-md transition-transform duration-500 hover:shadow-2xl">
+          {/* Main Terminal & AI Chat Container */}
+          <div className="relative max-w-5xl mx-auto bg-[#0F141C] rounded-2xl border border-white/10 shadow-2xl overflow-hidden backdrop-blur-md">
             
             {/* Top Window Bar */}
-            <div className="bg-gray-100/90 px-4 py-2.5 border-b border-gray-200 flex items-center justify-between text-xs text-gray-600">
+            <div className="bg-[#181F2C] px-4 py-2.5 border-b border-white/10 flex items-center justify-between text-xs text-gray-300">
               <div className="flex items-center gap-2">
-                <div className="w-2.5 h-2.5 rounded-full bg-red-400" />
-                <div className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
-                <div className="w-2.5 h-2.5 rounded-full bg-green-400" />
-                <div className="ml-4 flex items-center gap-3 text-xs font-medium text-gray-700">
-                  <span className="text-gray-400">Benchmarks</span>
-                  <span className="font-semibold text-black bg-white px-2.5 py-0.5 rounded shadow-xs border border-gray-200 flex items-center gap-1.5">
-                    <WeftLogo className="w-3.5 h-3.5 text-black" />
-                    <span>Weft Factory</span>
-                  </span>
+                <div className="w-3 h-3 rounded-full bg-[#FF5F56]" />
+                <div className="w-3 h-3 rounded-full bg-[#FFBD2E]" />
+                <div className="w-3 h-3 rounded-full bg-[#27C93F]" />
+                <div className="ml-4 flex items-center gap-2 font-mono text-[11px] text-gray-400">
+                  <img src="/weft-icon.jpg" alt="Weft" className="w-3.5 h-3.5 rounded" />
+                  <span>weft-terminal</span>
+                  <span className="text-gray-600">/</span>
+                  <span className="text-gray-300">local-agent-chat</span>
                 </div>
               </div>
-              <div className="flex items-center gap-4 text-[11px] text-gray-500 font-mono">
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" /> compute</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-indigo-500" /> platform</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-500" /> inference</span>
+
+              {/* Trust badges in window header */}
+              <div className="hidden sm:flex items-center gap-3 text-[10px] font-mono text-gray-400">
+                <span className="flex items-center gap-1 text-emerald-400">
+                  <ShieldCheck className="w-3 h-3" /> No Server Calls
+                </span>
+                <span className="text-gray-600">•</span>
+                <span className="flex items-center gap-1 text-cyan-400">
+                  <Zap className="w-3 h-3" /> Local CLI Sessions
+                </span>
               </div>
             </div>
 
-            {/* Main Window Split Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-gray-200 text-xs">
+            {/* CLI Selector Toolbar */}
+            <div className="bg-[#121824] px-4 py-2 border-b border-white/5 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="text-gray-400 text-[11px] font-mono mr-1">Active CLI:</span>
+                <button
+                  onClick={() => setSelectedCLI('claude')}
+                  className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1.5 ${
+                    selectedCLI === 'claude' 
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' 
+                      : 'text-gray-400 hover:text-gray-200 bg-white/5'
+                  }`}
+                >
+                  <span>Claude Code</span>
+                  {selectedCLI === 'claude' && <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />}
+                </button>
+                <button
+                  onClick={() => setSelectedCLI('codex')}
+                  className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1.5 ${
+                    selectedCLI === 'codex' 
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
+                      : 'text-gray-400 hover:text-gray-200 bg-white/5'
+                  }`}
+                >
+                  <span>OpenAI Codex</span>
+                  {selectedCLI === 'codex' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+                </button>
+                <button
+                  onClick={() => setSelectedCLI('gemini')}
+                  className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1.5 ${
+                    selectedCLI === 'gemini' 
+                      ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40' 
+                      : 'text-gray-400 hover:text-gray-200 bg-white/5'
+                  }`}
+                >
+                  <span>Google Gemini</span>
+                  {selectedCLI === 'gemini' && <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />}
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 text-[10px] font-mono text-gray-400">
+                <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-gray-300">
+                  {current.model}
+                </span>
+                <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-cyan-300">
+                  {current.reasoning}
+                </span>
+              </div>
+            </div>
+
+            {/* Terminal Agent Chat Body */}
+            <div className="p-5 font-mono text-xs text-gray-200 space-y-4">
               
-              {/* Left Column: Cost & Quality Metrics */}
-              <div className="lg:col-span-4 p-5 space-y-5 bg-white">
-                <div>
-                  <div className="flex items-baseline justify-between">
-                    <div className="text-2xl sm:text-3xl font-bold text-black tracking-tight font-mono">
-                      $26.25 <span className="text-sm font-semibold text-emerald-600 font-sans">-28%</span>
-                    </div>
-                    <span className="text-[11px] text-gray-400 font-mono">may 20</span>
-                  </div>
-                  <div className="text-[11px] text-gray-500 font-medium mt-0.5">Cost per PR</div>
-                  <div className="text-[10px] text-gray-400 font-mono mt-1">
-                    compute $10.40 · platform $7.33 · inference $8.52
-                  </div>
+              {/* User Prompt */}
+              <div className="flex items-start gap-3 bg-white/5 p-3 rounded-lg border border-white/5">
+                <div className="w-6 h-6 rounded bg-indigo-600 text-white font-bold flex items-center justify-center text-[10px] shrink-0">
+                  YOU
                 </div>
-
-                {/* Animated Chart Line */}
-                <div className="h-16 w-full bg-gradient-to-r from-blue-50/50 via-indigo-50/50 to-purple-50/50 rounded-lg p-2 border border-gray-100 flex items-end overflow-hidden">
-                  <svg viewBox="0 0 200 40" className="w-full h-full text-indigo-500">
-                    <motion.path 
-                      initial={{ pathLength: 0 }}
-                      animate={{ pathLength: 1 }}
-                      transition={{ duration: 1.8, ease: "easeOut" }}
-                      d="M0 35 Q 50 25, 100 15 T 200 8" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      strokeWidth="2.5" 
-                    />
-                    <path d="M0 35 Q 50 25, 100 15 T 200 8 L 200 40 L 0 40 Z" fill="rgba(99, 102, 241, 0.12)" />
-                  </svg>
-                </div>
-
-                {/* 4 Score Metric Cards */}
-                <div className="grid grid-cols-2 gap-3 pt-2">
-                  <motion.div whileHover={{ y: -2 }} className="p-2.5 rounded-lg border border-gray-100 bg-gray-50/50 transition-shadow hover:shadow-xs">
-                    <div className="text-[11px] font-medium text-gray-600">Code quality</div>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">PASS</span>
-                      <span className="font-bold text-black font-mono">82%</span>
-                    </div>
-                  </motion.div>
-
-                  <motion.div whileHover={{ y: -2 }} className="p-2.5 rounded-lg border border-gray-100 bg-gray-50/50 transition-shadow hover:shadow-xs">
-                    <div className="text-[11px] font-medium text-gray-600">Review pass rate</div>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">PASS</span>
-                      <span className="font-bold text-black font-mono">78%</span>
-                    </div>
-                  </motion.div>
-
-                  <motion.div whileHover={{ y: -2 }} className="p-2.5 rounded-lg border border-gray-100 bg-gray-50/50 transition-shadow hover:shadow-xs">
-                    <div className="text-[11px] font-medium text-gray-600">CI pass rate</div>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">PASS</span>
-                      <span className="font-bold text-black font-mono">84%</span>
-                    </div>
-                  </motion.div>
-
-                  <motion.div whileHover={{ y: -2 }} className="p-2.5 rounded-lg border border-gray-100 bg-gray-50/50 transition-shadow hover:shadow-xs">
-                    <div className="text-[11px] font-medium text-gray-600">Instruction adherence</div>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">PASS</span>
-                      <span className="font-bold text-black font-mono">77%</span>
-                    </div>
-                  </motion.div>
+                <div className="space-y-1">
+                  <div className="text-[10px] text-gray-400 font-sans">Prompt</div>
+                  <p className="text-gray-100 font-sans text-sm">
+                    Add fuzzy search indexing to the workspace command palette with sub-millisecond filtering.
+                  </p>
                 </div>
               </div>
 
-              {/* Middle Column: Activity Board */}
-              <div className="lg:col-span-4 p-5 space-y-3 bg-gray-50/30">
-                <div className="flex items-center justify-between font-semibold text-gray-800 text-xs">
-                  <span>Activity</span>
-                  <div className="flex items-center gap-1 text-gray-400">
-                    <MoreHorizontal className="w-3.5 h-3.5" />
-                  </div>
+              {/* Agent Response Container */}
+              <div className="space-y-3 pl-2 sm:pl-4 border-l-2 border-cyan-500/40">
+                
+                {/* Streaming Thought Header */}
+                <div 
+                  onClick={() => setIsThinkingOpen(!isThinkingOpen)}
+                  className="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 text-[11px] cursor-pointer hover:bg-cyan-500/20 transition-colors"
+                >
+                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                  <span className="font-semibold">Thought for 3.8s</span>
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isThinkingOpen ? 'rotate-180' : ''}`} />
                 </div>
 
-                <div className="space-y-2 font-sans">
-                  <div className="p-2 rounded-md bg-white border border-gray-200 text-[11px] flex items-center justify-between hover:border-gray-300 transition-colors">
-                    <span className="font-medium text-gray-800">Triage</span>
-                    <span className="px-1.5 py-0.2 rounded bg-gray-100 font-mono text-gray-600 font-semibold">3</span>
-                  </div>
-
+                {/* Collapsible Thought Details */}
+                {isThinkingOpen && (
                   <motion.div 
-                    animate={{ scale: [1, 1.01, 1] }} 
-                    transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
-                    className="p-2.5 rounded-lg bg-indigo-50/70 border border-indigo-200 text-[11px] space-y-1.5 shadow-xs"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="p-3 rounded-lg bg-black/40 border border-white/5 text-[11px] text-gray-400 leading-relaxed font-mono"
                   >
-                    <div className="flex items-center justify-between font-semibold text-indigo-900">
-                      <span>Planning</span>
-                      <span className="px-1.5 py-0.2 rounded bg-indigo-100 font-mono text-indigo-700">2</span>
-                    </div>
-                    <div className="p-2 rounded bg-white border border-indigo-100 shadow-xs space-y-1">
-                      <div className="flex items-center justify-between text-[10px]">
-                        <span className="font-mono text-gray-500">WRP-1172</span>
-                        <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 text-[9px] font-bold">Needs attention</span>
-                      </div>
-                      <p className="font-medium text-gray-800 leading-tight">Weekly recursive improvement automation</p>
-                    </div>
+                    {current.thought}
                   </motion.div>
+                )}
 
-                  <div className="p-2 rounded-md bg-white border border-gray-200 text-[11px] flex items-center justify-between hover:border-gray-300 transition-colors">
-                    <span className="font-medium text-gray-800">Building</span>
-                    <span className="px-1.5 py-0.2 rounded bg-gray-100 font-mono text-gray-600 font-semibold">3</span>
+                {/* Tool Calls Execution */}
+                <div className="space-y-1 text-[11px]">
+                  <div className="flex items-center gap-2 text-emerald-400 bg-black/30 px-2.5 py-1 rounded border border-white/5">
+                    <Check className="w-3.5 h-3.5" />
+                    <span>read_file: crates/warpui/src/search.rs</span>
+                    <span className="text-[10px] text-gray-500 ml-auto font-mono">124 lines</span>
                   </div>
-
-                  <div className="p-2 rounded-md bg-white border border-gray-200 text-[11px] flex items-center justify-between hover:border-gray-300 transition-colors">
-                    <span className="font-medium text-gray-800">Reviewing</span>
-                    <span className="px-1.5 py-0.2 rounded bg-gray-100 font-mono text-gray-600 font-semibold">2</span>
-                  </div>
-
-                  <div className="p-2 rounded-md bg-white border border-gray-200 text-[11px] flex items-center justify-between hover:border-gray-300 transition-colors">
-                    <span className="font-medium text-gray-800">Shipped</span>
-                    <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-mono font-semibold">4</span>
+                  <div className="flex items-center gap-2 text-emerald-400 bg-black/30 px-2.5 py-1 rounded border border-white/5">
+                    <Check className="w-3.5 h-3.5" />
+                    <span>replace_file_content: apply fuzzy score matcher</span>
+                    <span className="text-[10px] text-gray-500 ml-auto font-mono">+18 -2</span>
                   </div>
                 </div>
+
+                {/* Assistant Output Summary */}
+                <div className="bg-[#151C28] p-3.5 rounded-lg border border-white/10 text-xs text-gray-200 font-sans leading-relaxed space-y-2">
+                  <p>
+                    I've updated the fuzzy search implementation in <code className="px-1.5 py-0.5 rounded bg-black/50 text-cyan-300 font-mono text-[11px]">crates/warpui/src/search.rs</code>. It indexes cached action labels into a prefix trie and executes queries with zero UI hitching.
+                  </p>
+                  
+                  <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-white/10 text-[10px] font-mono text-gray-400">
+                    <span className="flex items-center gap-1.5 text-emerald-400">
+                      <Check className="w-3 h-3" /> Ready to test
+                    </span>
+                    <span>1,248 tokens · 0.42s · Subscription active</span>
+                  </div>
+                </div>
+
               </div>
 
-              {/* Right Column: Implementation Plan */}
-              <div className="lg:col-span-4 p-5 space-y-4 bg-white flex flex-col justify-between">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between border-b border-gray-100 pb-2">
-                    <div>
-                      <div className="text-[10px] font-mono text-gray-400">WRP-1172</div>
-                      <div className="text-xs font-bold text-black">Implementation plan</div>
-                    </div>
-                    <span className="text-[10px] text-gray-400 font-mono">may 20</span>
-                  </div>
-
-                  <div>
-                    <div className="text-[11px] font-bold text-gray-700 mb-1">Summary</div>
-                    <p className="text-[11px] text-gray-600 leading-relaxed">
-                      Cost per PR is already trending down and every scorer is passing. Profiling shows headroom to make the factory cheaper and sharper still.
-                    </p>
-                  </div>
-
-                  <div>
-                    <div className="text-[11px] font-bold text-gray-700 mb-1">Proposed changes</div>
-                    <ol className="text-[11px] text-gray-600 space-y-2 list-decimal list-inside leading-tight">
-                      <li><strong className="text-black">Profile the pipeline</strong> — Trace agent runs to find stages burning tokens.</li>
-                      <li><strong className="text-black">Upgrade shared instructions</strong> — Rewrite factory-wide instructions & skills.</li>
-                      <li><strong className="text-black">Trim wasted work</strong> — Cache repeated context and drop redundant tool calls.</li>
-                    </ol>
-                  </div>
-                </div>
-
-                {/* Reject / Approve Buttons */}
-                <div className="pt-4 border-t border-gray-100 flex items-center justify-end gap-2">
-                  <button 
-                    onClick={() => setApproved(false)}
-                    className="px-3 py-1.5 rounded text-xs font-semibold text-gray-600 hover:bg-gray-100 transition-colors"
-                  >
-                    Reject
-                  </button>
-                  <motion.button 
-                    whileHover={{ scale: 1.04 }}
-                    whileTap={{ scale: 0.96 }}
-                    onClick={() => setApproved(!approved)}
-                    className={`px-4 py-1.5 rounded text-white text-xs font-semibold shadow-sm transition-colors flex items-center gap-1.5 ${
-                      approved ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-indigo-600 hover:bg-indigo-700'
-                    }`}
-                  >
-                    {approved ? <Check className="w-3.5 h-3.5" /> : null}
-                    <span>{approved ? 'Approved' : 'Approve'}</span>
-                  </motion.button>
-                </div>
+              {/* Terminal CLI prompt line */}
+              <div className="pt-2 flex items-center gap-2 text-gray-400 text-xs">
+                <span className="text-emerald-400 font-bold">munir@macbook</span>
+                <span className="text-gray-600">:</span>
+                <span className="text-cyan-400 font-semibold">~/project</span>
+                <span className="text-gray-400">$</span>
+                <span className="w-2 h-4 bg-gray-200 animate-pulse inline-block" />
               </div>
 
             </div>
+
           </div>
         </motion.div>
 

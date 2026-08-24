@@ -1,91 +1,86 @@
 import React from 'react'
 import { motion } from 'framer-motion'
+import { Github, Code2, ShieldCheck, Terminal } from 'lucide-react'
 
 export default function StatsAndTrust() {
-  const stats = [
-    { value: '718K', label: 'active developers' },
-    { value: '51%', label: 'of the Fortune 500' },
-    { value: '179K', label: 'agents running daily' }
-  ]
-
-  const logos = [
-    'ANTHROP\\C',
-    'OpenAI',
-    'docker',
-    'Google',
-    'Stanford',
-    'phantom',
-    'Rectangle',
-    'GitHub',
-    'amazon',
-    'asana',
-    'NVIDIA',
-    'Retool',
-    'vmware',
-    'ramp',
-    'DOORDASH',
+  const trustSignals = [
+    {
+      icon: Code2,
+      title: '100% Open Source',
+      description: 'Fully open-source codebase. Inspect every line, compile from source, and run without restrictions.',
+    },
+    {
+      icon: ShieldCheck,
+      title: 'Zero Cloud Relay',
+      description: 'Your chats stay on your machine. Weft connects directly to your installed local CLI tools with no proxy.',
+    },
+    {
+      icon: Terminal,
+      title: 'Built on Warp Core',
+      description: "Forked from Warp's world-class GPU-accelerated terminal engine with modern WarpUI architecture.",
+    },
   ]
 
   return (
-    <section className="py-20 bg-[#F4F0FF] text-black overflow-hidden">
+    <section className="py-20 bg-[#F0EBF8] text-black overflow-hidden border-b border-gray-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        {/* 3 Main Numbers Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20">
-          {stats.map((stat, idx) => (
-            <motion.div 
-              key={idx}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: idx * 0.15 }}
-            >
-              <div className="text-5xl sm:text-6xl font-bold tracking-tight text-black font-sans">
-                {stat.value}
-              </div>
-              <div className="text-sm font-medium text-gray-700 mt-2">
-                {stat.label}
-              </div>
-            </motion.div>
-          ))}
+        {/* Section Header */}
+        <div className="text-center max-w-2xl mx-auto mb-12">
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-black mb-3">
+            Honest, transparent developer tools
+          </h2>
+          <p className="text-sm text-gray-700">
+            No cloud telemetry, no subscription lock-in, and no hidden server dependencies.
+          </p>
         </div>
 
-        {/* Trusted By Headline */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="mb-12"
-        >
-          <h2 className="text-3xl sm:text-4xl font-bold text-black tracking-tight mb-2">
-            Trusted by leading <br className="hidden sm:inline" />
-            engineering teams
-          </h2>
-          <p className="text-sm text-gray-600">
-            Over 800,000 engineers at leading engineering teams use Weft
-          </p>
-        </motion.div>
+        {/* 3 Trust Feature Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+          {trustSignals.map((item, idx) => {
+            const Icon = item.icon
+            return (
+              <motion.div
+                key={idx}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: idx * 0.1 }}
+                whileHover={{ y: -4 }}
+                className="bg-white/90 backdrop-blur-sm p-6 rounded-2xl border border-purple-100 shadow-sm transition-all"
+              >
+                <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center mb-4">
+                  <Icon className="w-5 h-5" />
+                </div>
+                <h3 className="text-base font-bold text-black mb-2">{item.title}</h3>
+                <p className="text-xs text-gray-600 leading-relaxed">{item.description}</p>
+              </motion.div>
+            )
+          })}
+        </div>
 
-        {/* Logos Grid with smooth hover animations */}
-        <motion.div 
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.8, delay: 0.2 }}
-          className="grid grid-cols-3 sm:grid-cols-5 gap-8 sm:gap-12 items-center text-gray-600 font-semibold text-lg sm:text-xl"
-        >
-          {logos.map((name, i) => (
-            <motion.div
-              key={i}
-              whileHover={{ scale: 1.08, color: '#000000' }}
-              transition={{ type: "spring", stiffness: 400, damping: 17 }}
-              className="flex items-center justify-start text-gray-500 hover:text-black transition-colors font-sans tracking-tight cursor-default"
-            >
-              <span>{name}</span>
-            </motion.div>
-          ))}
-        </motion.div>
+        {/* GitHub Community Banner */}
+        <div className="bg-white rounded-2xl p-6 border border-purple-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4 max-w-4xl mx-auto">
+          <div className="flex items-center gap-3 text-left">
+            <div className="w-10 h-10 rounded-full bg-black text-white flex items-center justify-center shrink-0">
+              <Github className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="font-bold text-sm text-black">Star and contribute on GitHub</div>
+              <div className="text-xs text-gray-600">Explore releases, documentation, and the full Rust codebase.</div>
+            </div>
+          </div>
+
+          <a
+            href="https://github.com/black12-ag/weft"
+            target="_blank"
+            rel="noreferrer"
+            className="bg-black text-white hover:bg-neutral-800 px-5 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-colors inline-flex items-center gap-2 shrink-0 shadow-xs"
+          >
+            <Github className="w-4 h-4" />
+            <span>black12-ag/weft</span>
+          </a>
+        </div>
 
       </div>
     </section>

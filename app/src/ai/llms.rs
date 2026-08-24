@@ -263,6 +263,45 @@ pub struct LLMSpec {
     pub speed: f32,
 }
 
+/// Rough Intelligence / Speed / Cost scores (0..1) for a local-CLI model, so the
+/// `/MODEL` picker's spec panel shows real bars instead of "?". `cost` is a
+/// *relative* price (a fuller bar = pricier), derived from each family's tier;
+/// keyed off substrings of the model name so new variants map to a sensible row.
+pub fn cli_model_spec(model: &str) -> LLMSpec {
+    let m = model.to_lowercase();
+    // (quality, speed, cost) — all 0..1.
+    let (quality, speed, cost) = if m.contains("opus") {
+        (0.97, 0.38, 0.92)
+    } else if m.contains("sonnet") {
+        (0.88, 0.66, 0.50)
+    } else if m.contains("haiku") {
+        (0.62, 0.95, 0.18)
+    } else if m.contains("fable") {
+        (0.80, 0.85, 0.32)
+    } else if m.contains("oss") {
+        // open-weight / local (e.g. gpt-oss, ollama) — cheap, mid quality.
+        (0.60, 0.72, 0.08)
+    } else if m.contains("flash") {
+        (0.68, 0.95, 0.12)
+    } else if m.contains("gemini") && m.contains("pro") {
+        (0.86, 0.60, 0.45)
+    } else if m.contains("gemini") {
+        (0.75, 0.85, 0.20)
+    } else if m.contains("gpt-5") || m.contains("codex") || m.contains("gpt") {
+        (0.90, 0.50, 0.65)
+    } else if m.contains("default") {
+        // The account's default model — usually a mid/high Claude.
+        (0.85, 0.62, 0.50)
+    } else {
+        (0.72, 0.70, 0.40)
+    };
+    LLMSpec {
+        cost,
+        quality,
+        speed,
+    }
+}
+
 /// The host where an LLM can be routed to.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum LLMModelHost {
@@ -1336,7 +1375,8 @@ impl LLMPreferences {
                     description: None,
                     disable_reason: None,
                     vision_supported: false,
-                    spec: None,
+                    // Real Intelligence/Speed/Cost bars instead of "?".
+                    spec: Some(cli_model_spec(model)),
                     provider: LLMProvider::Unknown,
                     host_configs: HashMap::new(),
                     discount_percentage: None,

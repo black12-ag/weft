@@ -1,6 +1,5 @@
 import React, { useState } from 'react'
-import { Github, Menu, X } from 'lucide-react'
-import WeftLogo from './WeftLogo'
+import { Github, Menu, X, Download } from 'lucide-react'
 
 export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -11,46 +10,53 @@ export default function Navbar() {
         
         {/* Left: Brand Logo & Links */}
         <div className="flex items-center gap-8">
-          <a href="#" className="flex items-center gap-2 group">
-            <img src="/weft-icon.jpg" alt="Weft" className="w-7 h-7 rounded-md group-hover:scale-105 transition-transform" />
+          <a href="#" className="flex items-center gap-2.5 group">
+            <img src="/weft-icon.jpg" alt="Weft" className="w-7 h-7 rounded-md group-hover:scale-105 transition-transform shadow-xs" />
             <span className="font-bold text-xl tracking-tight text-black font-sans">weft</span>
           </a>
 
           {/* Navigation Items */}
-          <nav className="hidden md:flex items-center gap-6 text-[14px] text-gray-700 font-normal">
-            <a href="#products" className="hover:text-black transition-colors">Products</a>
-            <a href="#solutions" className="hover:text-black transition-colors">Solutions</a>
-            <a href="#resources" className="hover:text-black transition-colors">Resources</a>
-            <a href="#enterprise" className="hover:text-black transition-colors">Enterprise</a>
-            <a href="#pricing" className="hover:text-black transition-colors">Pricing</a>
+          <nav className="hidden md:flex items-center gap-6 text-[14px] text-gray-700 font-medium">
+            <a href="#features" className="hover:text-black transition-colors">Features</a>
+            <a href="#download" className="hover:text-black transition-colors">Download</a>
+            <a 
+              href="https://github.com/black12-ag/weft" 
+              target="_blank" 
+              rel="noreferrer" 
+              className="hover:text-black transition-colors"
+            >
+              GitHub
+            </a>
+            <a 
+              href="https://github.com/black12-ag/weft/blob/master/FAQ.md" 
+              target="_blank" 
+              rel="noreferrer" 
+              className="hover:text-black transition-colors"
+            >
+              FAQ
+            </a>
           </nav>
         </div>
 
         {/* Right Action Buttons */}
-        <div className="hidden md:flex items-center gap-5 text-[13px]">
+        <div className="hidden md:flex items-center gap-4 text-[13px]">
           {/* GitHub Star Count */}
           <a
             href="https://github.com/black12-ag/weft"
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-1.5 text-gray-800 hover:text-black font-medium"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-gray-200 text-gray-800 hover:text-black hover:border-gray-300 font-medium transition-colors"
           >
             <Github className="w-4 h-4" />
-            <span>64k</span>
-          </a>
-
-          <a
-            href="#demo"
-            className="text-gray-900 hover:text-black font-medium uppercase text-xs tracking-wider"
-          >
-            Book a demo
+            <span>GitHub</span>
           </a>
 
           <a
             href="#download"
-            className="bg-black text-white px-4 py-2 rounded-md font-semibold uppercase text-xs tracking-wider hover:bg-neutral-800 transition-colors shadow-sm"
+            className="bg-black text-white px-4 py-2 rounded-md font-semibold text-xs tracking-wider uppercase hover:bg-neutral-800 transition-colors shadow-sm flex items-center gap-1.5"
           >
-            Get Started
+            <Download className="w-3.5 h-3.5" />
+            <span>Download</span>
           </a>
         </div>
 
@@ -60,11 +66,12 @@ export default function Navbar() {
             href="#download"
             className="bg-black text-white px-3 py-1.5 rounded text-xs font-semibold uppercase tracking-wider"
           >
-            Get Started
+            Download
           </a>
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="p-1.5 text-gray-700 hover:text-black"
+            aria-label="Toggle menu"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
@@ -75,14 +82,26 @@ export default function Navbar() {
       {/* Mobile Menu */}
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-gray-100 bg-white px-4 py-4 space-y-3 text-sm font-medium">
-          <a href="#products" onClick={() => setMobileMenuOpen(false)} className="block py-1 text-gray-800">Products</a>
-          <a href="#solutions" onClick={() => setMobileMenuOpen(false)} className="block py-1 text-gray-800">Solutions</a>
-          <a href="#resources" onClick={() => setMobileMenuOpen(false)} className="block py-1 text-gray-800">Resources</a>
-          <a href="#enterprise" onClick={() => setMobileMenuOpen(false)} className="block py-1 text-gray-800">Enterprise</a>
-          <a href="#pricing" onClick={() => setMobileMenuOpen(false)} className="block py-1 text-gray-800">Pricing</a>
-          <a href="https://github.com/black12-ag/weft" target="_blank" rel="noreferrer" className="flex items-center gap-2 py-1 text-gray-800">
+          <a href="#features" onClick={() => setMobileMenuOpen(false)} className="block py-1 text-gray-800">Features</a>
+          <a href="#download" onClick={() => setMobileMenuOpen(false)} className="block py-1 text-gray-800">Download</a>
+          <a 
+            href="https://github.com/black12-ag/weft" 
+            target="_blank" 
+            rel="noreferrer" 
+            onClick={() => setMobileMenuOpen(false)} 
+            className="flex items-center gap-2 py-1 text-gray-800"
+          >
             <Github className="w-4 h-4" />
-            <span>GitHub (64k Stars)</span>
+            <span>GitHub</span>
+          </a>
+          <a 
+            href="https://github.com/black12-ag/weft/blob/master/FAQ.md" 
+            target="_blank" 
+            rel="noreferrer" 
+            onClick={() => setMobileMenuOpen(false)} 
+            className="block py-1 text-gray-800"
+          >
+            FAQ
           </a>
         </div>
       )}

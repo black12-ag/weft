@@ -74,3 +74,4 @@ __pycache__/
 # Weft website build artifacts
 weft/node_modules/
 weft/dist/
+*.dmg

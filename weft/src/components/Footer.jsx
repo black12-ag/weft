@@ -1,39 +1,20 @@
 import React from 'react'
-import WeftLogo from './WeftLogo'
 
 export default function Footer() {
   const columns = {
     product: [
       { name: 'Download', href: '#download' },
-      { name: 'Pricing', href: '#pricing' },
-      { name: 'Enterprise', href: '#enterprise' },
-      { name: 'Changelog', href: 'https://github.com/black12-ag/weft/releases' },
-      { name: 'Docs', href: 'https://github.com/black12-ag/weft#readme' },
-      { name: 'Open Source â', href: 'https://github.com/black12-ag/weft' },
-      { name: 'Status', href: '#status' },
+      { name: 'Features', href: '#features' },
+      { name: 'Provider Integrations', href: '#platform' },
+      { name: 'Changelog ↗', href: 'https://github.com/black12-ag/weft/releases' },
+      { name: 'Releases ↗', href: 'https://github.com/black12-ag/weft/releases/latest' },
     ],
-    resources: [
-      { name: 'Blog', href: '#blog' },
-      { name: 'FAQ', href: 'https://github.com/black12-ag/weft/blob/master/FAQ.md' },
-      { name: 'Community', href: '#community' },
-      { name: 'Support', href: '#support' },
-      { name: 'Do Things with Weft', href: '#do-things' },
-      { name: 'Terminus', href: '#terminus' },
-    ],
-    company: [
-      { name: 'About', href: '#about' },
-      { name: 'How We Work', href: '#how-we-work' },
-      { name: 'Careers', href: '#careers' },
-      { name: 'Press', href: '#press' },
-      { name: 'Contact', href: '#contact' },
-    ],
-    legal: [
-      { name: 'Privacy Policy', href: '#privacy' },
-      { name: 'Terms of Service', href: '#terms' },
-      { name: 'Security', href: 'https://github.com/black12-ag/weft/blob/master/SECURITY.md' },
-      { name: 'Cookie Notice', href: '#cookies' },
-      { name: 'Data Processing Addendum', href: '#dpa' },
-      { name: 'Enterprise License', href: '#license' },
+    opensource: [
+      { name: 'GitHub Repository ↗', href: 'https://github.com/black12-ag/weft' },
+      { name: 'Issues & Bugs ↗', href: 'https://github.com/black12-ag/weft/issues' },
+      { name: 'FAQ ↗', href: 'https://github.com/black12-ag/weft/blob/master/FAQ.md' },
+      { name: 'Security Policy ↗', href: 'https://github.com/black12-ag/weft/blob/master/SECURITY.md' },
+      { name: 'Warp Upstream ↗', href: 'https://github.com/warpdotdev/warp' },
     ],
     connect: [
       { name: 'GitHub ↗', href: 'https://github.com/black12-ag/weft' },
@@ -49,13 +30,13 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Brand Bar */}
-        <div className="flex items-center gap-2 mb-10">
-          <img src="/weft-icon.jpg" alt="Weft" className="w-7 h-7 rounded-md" />
+        <div className="flex items-center gap-2.5 mb-10">
+          <img src="/weft-icon.jpg" alt="Weft" className="w-7 h-7 rounded-md shadow-xs" />
           <span className="font-bold text-lg text-black font-sans tracking-tight">weft</span>
         </div>
 
-        {/* 5 Columns Links */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-8 mb-16">
+        {/* 3 Honest Columns Links */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mb-12">
           
           <div>
             <div className="font-bold text-black uppercase tracking-wider text-[11px] mb-4">
@@ -74,42 +55,12 @@ export default function Footer() {
 
           <div>
             <div className="font-bold text-black uppercase tracking-wider text-[11px] mb-4">
-              Resources
+              Open Source
             </div>
             <ul className="space-y-2.5">
-              {columns.resources.map(link => (
+              {columns.opensource.map(link => (
                 <li key={link.name}>
-                  <a href={link.href} className="hover:text-black transition-colors">
-                    {link.name}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div>
-            <div className="font-bold text-black uppercase tracking-wider text-[11px] mb-4">
-              Company
-            </div>
-            <ul className="space-y-2.5">
-              {columns.company.map(link => (
-                <li key={link.name}>
-                  <a href={link.href} className="hover:text-black transition-colors">
-                    {link.name}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div>
-            <div className="font-bold text-black uppercase tracking-wider text-[11px] mb-4">
-              Legal
-            </div>
-            <ul className="space-y-2.5">
-              {columns.legal.map(link => (
-                <li key={link.name}>
-                  <a href={link.href} className="hover:text-black transition-colors">
+                  <a href={link.href} target="_blank" rel="noreferrer" className="hover:text-black transition-colors">
                     {link.name}
                   </a>
                 </li>
@@ -124,7 +75,7 @@ export default function Footer() {
             <ul className="space-y-2.5">
               {columns.connect.map(link => (
                 <li key={link.name}>
-                  <a href={link.href} className="hover:text-black transition-colors">
+                  <a href={link.href} target="_blank" rel="noreferrer" className="hover:text-black transition-colors">
                     {link.name}
                   </a>
                 </li>
@@ -134,17 +85,17 @@ export default function Footer() {
 
         </div>
 
-        {/* Bottom Status & Copyright */}
-        <div className="pt-8 border-t border-gray-300 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-gray-500">
-          <div className="flex items-center gap-4">
-            <span>All Rights Reserved Â© 2026</span>
-            <span>Â·</span>
-            <span>SOC 2 Certified</span>
+        {/* Bottom Attribution & Credit to Warp */}
+        <div className="pt-8 border-t border-gray-300 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-gray-600">
+          <div className="flex flex-wrap items-center gap-3">
+            <span>Weft is an open-source fork of Warp's terminal — credit to <a href="https://github.com/warpdotdev/warp" target="_blank" rel="noreferrer" className="underline hover:text-black">warpdotdev/warp</a>.</span>
+            <span>•</span>
+            <span>Free & Open Source</span>
           </div>
 
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span className="text-gray-700">All Systems Operational</span>
+            <span className="text-gray-800 font-medium">100% Local & Private</span>
           </div>
         </div>
 
