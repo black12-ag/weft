@@ -78,11 +78,11 @@ export default function DownloadSection() {
 
             {/* Command Box */}
             <div className="border border-gray-200 rounded-xl p-3.5 flex items-center justify-between text-xs font-mono bg-white hover:border-gray-300 transition-colors">
-              <span className="text-gray-800 truncate mr-2">$ curl -L -o Weft.dmg https://github.com/black12-ag/weft/releases/latest/download/Weft.dmg</span>
+              <span className="text-gray-800 truncate mr-2">$ curl -fsSL https://raw.githubusercontent.com/black12-ag/weft/master/install-mac.sh | bash</span>
               <motion.button
                 whileHover={{ scale: 1.15 }}
                 whileTap={{ scale: 0.9 }}
-                onClick={() => handleCopy('curl -L -o Weft.dmg https://github.com/black12-ag/weft/releases/latest/download/Weft.dmg')}
+                onClick={() => handleCopy('curl -fsSL https://raw.githubusercontent.com/black12-ag/weft/master/install-mac.sh | bash')}
                 className="text-gray-400 hover:text-black shrink-0 cursor-pointer"
                 title="Copy command"
               >
