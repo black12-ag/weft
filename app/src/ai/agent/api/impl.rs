@@ -428,6 +428,7 @@ async fn run_local_cli_stream(
                 &model,
                 effort.as_deref(),
                 &prompt,
+                cwd.as_deref(),
                 std::time::Duration::from_secs(300),
                 |block| {
                     accumulate_block(
@@ -533,6 +534,13 @@ async fn run_local_cli_stream(
                 build_local_cli_invocation(&agent, &model, effort.as_deref(), &prompt);
             let mut cmd = std::process::Command::new(&bin);
             cmd.args(&args);
+            // Run in the user's current folder (Gemini/OpenCode/etc.), not home.
+            if let Some(dir) = cwd
+                .as_deref()
+                .filter(|d| !d.is_empty() && std::path::Path::new(d).is_dir())
+            {
+                cmd.current_dir(dir);
+            }
             let text = run_local_cli_with_timeout(cmd, std::time::Duration::from_secs(180));
             final_answer = text.clone();
             emit_message(
@@ -790,6 +798,7 @@ fn run_claude_streaming(
     model: &str,
     effort: Option<&str>,
     prompt: &str,
+    cwd: Option<&str>,
     timeout: std::time::Duration,
     on_block: impl FnMut(CliBlock),
 ) {
@@ -823,6 +832,11 @@ fn run_claude_streaming(
     }
     let mut cmd = std::process::Command::new(resolve_local_cli_binary("claude"));
     cmd.args(&args);
+    // Run in the user's current folder so the agent works on THAT project — not
+    // the home directory (otherwise it reads whatever is in ~ and talks about it).
+    if let Some(dir) = cwd.filter(|d| !d.is_empty() && std::path::Path::new(d).is_dir()) {
+        cmd.current_dir(dir);
+    }
     run_cli_streaming(cmd, timeout, parse_claude_line, on_block);
 }
 
