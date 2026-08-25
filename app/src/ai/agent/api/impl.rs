@@ -282,8 +282,11 @@ async fn run_local_cli_stream(
     let user_question = new_query.clone();
 
     // Prepend this project's saved memory so every model recalls past sessions
-    // (real questions only, not the toggle commands themselves).
-    let prompt = if tools_toggle.is_none() && memory_cmd.is_none() && !usage_cmd {
+    // (real questions only, not the toggle commands themselves). Only in FAST
+    // mode — in full/warm mode claude-mem owns memory (auto-saved + injected at
+    // session start), so my lightweight custom brain stays out of the way.
+    let prompt = if tools_toggle.is_none() && memory_cmd.is_none() && !usage_cmd && !tools_enabled()
+    {
         let mem = read_memory(cwd.as_deref());
         if mem.is_empty() {
             prompt
@@ -394,9 +397,9 @@ async fn run_local_cli_stream(
             // A `tools on|off` command: flip the mode and confirm, no CLI call.
             set_tools_enabled(on);
             let text = if on {
-                "🛠️ Tools mode ON — the CLIs now use your full personal config (all your MCP servers + skills from ~/.codex, ~/.claude). More power, slower startup. Say `tools off` to go fast again.".to_string()
+                "🛠️ Full mode ON (default) — a warm Claude session stays alive for this chat: claude-mem memory + all your skills + MCP load ONCE, then every message is fast. The agent can edit files and run tasks in your folder. Say `fast` for stripped, memory-free replies.".to_string()
             } else {
-                "⚡ Fast mode ON — no MCP loading; quick answers with built-in tools (read files, run commands). Say `tools on` to load your MCP servers + skills.".to_string()
+                "⚡ Fast mode ON — stripped & memory-free: no claude-mem, skills, or MCP, and a fresh process per message (~3s). Say `tools on` (or `full`) to go back to the warm session with memory + skills.".to_string()
             };
             emit_message(
                 fresh_id(),
@@ -424,26 +427,59 @@ async fn run_local_cli_stream(
             let mut produced_output = false;
             let started = std::time::Instant::now();
             let last_emit = std::cell::Cell::new(std::time::Instant::now());
-            run_claude_streaming(
-                &model,
-                effort.as_deref(),
-                &prompt,
-                cwd.as_deref(),
-                std::time::Duration::from_secs(300),
-                |block| {
-                    accumulate_block(
-                        block,
-                        &emit_message,
-                        &fresh_id,
-                        &reasoning_id,
-                        &output_id,
-                        &mut reasoning_acc,
-                        &mut output_acc,
-                        &mut produced_output,
-                        &last_emit,
-                    )
-                },
-            );
+            // Full/warm mode (default): keep one claude process alive for the whole
+            // chat, so only the FIRST message pays the claude-mem + skills startup;
+            // send just the new user turn (the live session keeps its own context).
+            // Fast mode (or a warm spawn failure) → the one-shot path with the full
+            // replayed transcript.
+            // Key the warm session on the TASK id, not the server conversation
+            // token (which is None in no-server Weft). The task is minted on turn
+            // 1 and echoed back by the client on every follow-up, so it's the
+            // stable per-chat identifier that makes the process actually reuse.
+            let handled = tools_enabled()
+                && warm_claude_turn(
+                    &task_id,
+                    &model,
+                    effort.as_deref(),
+                    &user_question,
+                    cwd.as_deref(),
+                    std::time::Duration::from_secs(600),
+                    |block| {
+                        accumulate_block(
+                            block,
+                            &emit_message,
+                            &fresh_id,
+                            &reasoning_id,
+                            &output_id,
+                            &mut reasoning_acc,
+                            &mut output_acc,
+                            &mut produced_output,
+                            &last_emit,
+                        )
+                    },
+                );
+            if !handled {
+                run_claude_streaming(
+                    &model,
+                    effort.as_deref(),
+                    &prompt,
+                    cwd.as_deref(),
+                    std::time::Duration::from_secs(300),
+                    |block| {
+                        accumulate_block(
+                            block,
+                            &emit_message,
+                            &fresh_id,
+                            &reasoning_id,
+                            &output_id,
+                            &mut reasoning_acc,
+                            &mut output_acc,
+                            &mut produced_output,
+                            &last_emit,
+                        )
+                    },
+                );
+            }
             // Flush the final answer (the last throttled tokens) as one upsert.
             if produced_output {
                 emit_message(
@@ -550,14 +586,12 @@ async fn run_local_cli_stream(
         }
 
         // Persist this exchange to the project's brain (Obsidian) so every model
-        // recalls it next time. Skipped for commands / empty answers.
-        append_memory(
-            cwd.as_deref(),
-            &agent,
-            &model,
-            &user_question,
-            &final_answer,
-        );
+        // recalls it next time. Skipped for commands / empty answers — and in
+        // full/warm mode, where claude-mem's own Stop hook saves the session
+        // (my custom save is what got cross-project "poisoned" before).
+        if !tools_enabled() {
+            append_memory(cwd.as_deref(), &agent, &model, &user_question, &final_answer);
+        }
 
         // 3) Finished(Done) — mandatory; a missing Finished triggers
         //    UnexpectedEof recovery on the consumer side.
@@ -674,9 +708,79 @@ fn fmt_tokens(n: u64) -> String {
     }
 }
 
+/// A short, human label for one of Claude's tool calls, shown as a step in the
+/// collapsible activity dropdown so you can see what the agent read, edited, ran,
+/// etc. — while the chat answer itself stays clean.
+fn claude_tool_step(name: &str, input: &serde_json::Value) -> String {
+    let s = |k: &str| input.get(k).and_then(|v| v.as_str()).unwrap_or("");
+    // Show just "parent/file" so long absolute paths don't blow up the line.
+    let short_path = |p: &str| -> String {
+        let parts: Vec<&str> = p
+            .trim_end_matches('/')
+            .split('/')
+            .filter(|x| !x.is_empty())
+            .collect();
+        match parts.len() {
+            0 => p.to_string(),
+            1 => parts[0].to_string(),
+            n => format!("{}/{}", parts[n - 2], parts[n - 1]),
+        }
+    };
+    let first_line = |t: &str, max: usize| -> String {
+        let line = t.lines().next().unwrap_or("").trim();
+        let mut out: String = line.chars().take(max).collect();
+        if line.chars().count() > max || t.lines().count() > 1 {
+            out.push('…');
+        }
+        out
+    };
+    match name {
+        "Read" => format!("📄 Read `{}`", short_path(s("file_path"))),
+        "Write" => format!("✍️ Wrote `{}`", short_path(s("file_path"))),
+        "Edit" | "MultiEdit" | "NotebookEdit" => {
+            format!("✏️ Edited `{}`", short_path(s("file_path")))
+        }
+        "Bash" | "BashOutput" => format!("⚙️ Ran `{}`", first_line(s("command"), 90)),
+        "Grep" => format!("🔎 Searched for `{}`", first_line(s("pattern"), 60)),
+        "Glob" => format!("🔎 Found files `{}`", s("pattern")),
+        "LS" => format!("📁 Listed `{}`", short_path(s("path"))),
+        "WebFetch" => format!("🌐 Fetched {}", first_line(s("url"), 70)),
+        "WebSearch" => format!("🌐 Web search: {}", first_line(s("query"), 60)),
+        "Task" => format!("🤖 Sub-task: {}", first_line(s("description"), 70)),
+        "TodoWrite" => "📝 Updated the plan".to_string(),
+        other if other.starts_with("mcp__") => {
+            format!("🔧 {}", other.trim_start_matches("mcp__").replace("__", " · "))
+        }
+        other => format!("🔧 {other}"),
+    }
+}
+
+/// A compact preview of a tool's result for the activity dropdown: the first few
+/// non-empty lines, tightly truncated, rendered as a dimmed markdown quote under
+/// the step. Empty when there's nothing useful to show.
+fn tool_result_preview(text: &str) -> String {
+    let text = text.trim();
+    if text.is_empty() {
+        return String::new();
+    }
+    let nonempty: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
+    let mut out: Vec<String> = nonempty
+        .iter()
+        .take(3)
+        .map(|l| {
+            let t: String = l.trim_end().chars().take(120).collect();
+            format!("> {t}")
+        })
+        .collect();
+    if nonempty.len() > 3 {
+        out.push("> …".to_string());
+    }
+    out.join("\n")
+}
+
 /// Parses one line of Claude's `--output-format stream-json` output, pushing any
-/// thinking/text content blocks (and the final token usage) onto the channel.
-/// Non-JSON or unrelated lines (system/rate-limit events) are ignored.
+/// thinking/text content blocks, tool-call steps, and the final token usage onto
+/// the channel. Non-JSON or unrelated lines (system/rate-limit events) are ignored.
 fn parse_claude_line(line: &str, btx: &std::sync::mpsc::Sender<CliBlock>) {
     let value: serde_json::Value = match serde_json::from_str(line.trim()) {
         Ok(v) => v,
@@ -729,6 +833,50 @@ fn parse_claude_line(line: &str, btx: &std::sync::mpsc::Sender<CliBlock>) {
             }
             _ => {}
         }
+        return;
+    }
+    // `assistant` events carry the model's tool CALLS (Read/Edit/Bash/…). We show
+    // each as a step in the collapsible activity dropdown so you can see what the
+    // agent is doing. We take ONLY `tool_use` here — the text/thinking are already
+    // streamed live via the `stream_event` deltas above, so re-reading them here
+    // would double them.
+    if value.get("type").and_then(|t| t.as_str()) == Some("assistant") {
+        if let Some(content) = value.pointer("/message/content").and_then(|c| c.as_array()) {
+            let empty = serde_json::Value::Object(Default::default());
+            for block in content {
+                if block.get("type").and_then(|t| t.as_str()) == Some("tool_use") {
+                    let name = block.get("name").and_then(|n| n.as_str()).unwrap_or("tool");
+                    let input = block.get("input").unwrap_or(&empty);
+                    let _ = btx.send(CliBlock::Reasoning(claude_tool_step(name, input)));
+                }
+            }
+        }
+        return;
+    }
+    // `user` events echo back tool RESULTS. Show a tiny dimmed preview under the
+    // step so the outcome (a file's contents, a command's output) is visible in the
+    // dropdown without cluttering the clean answer below.
+    if value.get("type").and_then(|t| t.as_str()) == Some("user") {
+        if let Some(content) = value.pointer("/message/content").and_then(|c| c.as_array()) {
+            for block in content {
+                if block.get("type").and_then(|t| t.as_str()) == Some("tool_result") {
+                    let text = match block.get("content") {
+                        Some(serde_json::Value::String(s)) => s.clone(),
+                        Some(serde_json::Value::Array(arr)) => arr
+                            .iter()
+                            .filter_map(|x| x.get("text").and_then(|t| t.as_str()))
+                            .collect::<Vec<_>>()
+                            .join(" "),
+                        _ => String::new(),
+                    };
+                    let preview = tool_result_preview(&text);
+                    if !preview.is_empty() {
+                        let _ = btx.send(CliBlock::Reasoning(preview));
+                    }
+                }
+            }
+        }
+        return;
     }
 }
 
@@ -829,6 +977,14 @@ fn run_claude_streaming(
         // Only the servers you left enabled in Settings (default: all). MCP tools
         // work, but the multi-GB plugins/skills scan is still skipped.
         args.push(selected_claude_mcp_config());
+    } else {
+        // Full mode (this is the warm-session fallback): let the agent edit files
+        // and run tasks in the folder with no approval prompts, and keep the chat
+        // clean regardless of the user's global output style.
+        args.push("--permission-mode".to_string());
+        args.push("bypassPermissions".to_string());
+        args.push("--append-system-prompt".to_string());
+        args.push(WEFT_CLEAN_PROMPT.to_string());
     }
     let mut cmd = std::process::Command::new(resolve_local_cli_binary("claude"));
     cmd.args(&args);
@@ -838,6 +994,215 @@ fn run_claude_streaming(
         cmd.current_dir(dir);
     }
     run_cli_streaming(cmd, timeout, parse_claude_line, on_block);
+}
+
+// ─────────────────────────── Warm Claude sessions ───────────────────────────
+// A persistent `claude` process per chat. The heavy startup — claude-mem's
+// memory search + the skills scan (~5–8s) — is paid ONCE when the session opens,
+// then every later message reuses the live process (just a model round-trip).
+// Messages are fed as stream-json on stdin; a reader thread parses stdout into
+// CliBlocks exactly like the one-shot path, so the UI is identical.
+
+/// Appended to Claude's system prompt in full mode so the terminal chat stays
+/// clean: no "Insight"/learning sections, preambles, or meta-commentary that the
+/// user's global output style would otherwise add — just the answer / the work.
+const WEFT_CLEAN_PROMPT: &str = "You are the assistant inside the Weft terminal's \
+chat panel. Reply concisely and directly in plain text suited to a terminal. Do \
+NOT add 'Insight' sections, learning tips, preambles, or meta-commentary unless \
+the user explicitly asks — just do the task and give the answer.";
+
+/// The turn-serialized half of a warm session (guarded by its own mutex so the
+/// registry lock is never held during a long turn).
+struct WarmIo {
+    stdin: std::process::ChildStdin,
+    rx: std::sync::mpsc::Receiver<CliBlock>,
+    last_used: std::time::Instant,
+}
+
+struct WarmClaude {
+    /// `cwd|model|effort` — any change means a fresh session (respawn).
+    key: String,
+    /// Cleared by the reader thread on EOF (process died).
+    alive: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    io: std::sync::Mutex<WarmIo>,
+    child: std::sync::Mutex<std::process::Child>,
+}
+
+impl Drop for WarmClaude {
+    fn drop(&mut self) {
+        if let Ok(mut c) = self.child.lock() {
+            let _ = c.kill();
+            let _ = c.wait();
+        }
+    }
+}
+
+type WarmMap = std::collections::HashMap<String, std::sync::Arc<WarmClaude>>;
+
+fn warm_registry() -> &'static std::sync::Mutex<WarmMap> {
+    static R: std::sync::OnceLock<std::sync::Mutex<WarmMap>> = std::sync::OnceLock::new();
+    R.get_or_init(|| std::sync::Mutex::new(WarmMap::new()))
+}
+
+/// Spawns a fresh full-config Claude session in persistent stream-json mode.
+/// Full config (no `--setting-sources ""`) so claude-mem + skills + MCP load;
+/// `acceptEdits` so the agent can create/modify files with no TTY to approve on.
+fn spawn_warm_claude(
+    model: &str,
+    effort: Option<&str>,
+    cwd: Option<&str>,
+    key: String,
+) -> Option<std::sync::Arc<WarmClaude>> {
+    use std::io::BufRead;
+    let mut args = vec![
+        "--print".to_string(),
+        "--input-format".to_string(),
+        "stream-json".to_string(),
+        "--output-format".to_string(),
+        "stream-json".to_string(),
+        "--verbose".to_string(),
+        "--include-partial-messages".to_string(),
+        "--model".to_string(),
+        model.to_string(),
+        // Real agent: let it read/create/edit files and run tasks in the folder
+        // with no prompts (headless has no TTY to approve on — `acceptEdits` alone
+        // gets blocked by the folder-trust gate, so we bypass it). Scoped to the
+        // cwd the user opened.
+        "--permission-mode".to_string(),
+        "bypassPermissions".to_string(),
+        // Keep the terminal chat clean regardless of the user's global style.
+        "--append-system-prompt".to_string(),
+        WEFT_CLEAN_PROMPT.to_string(),
+    ];
+    if let Some(eff) = effort {
+        args.push("--effort".to_string());
+        args.push(eff.to_string());
+    }
+    let mut cmd = std::process::Command::new(resolve_local_cli_binary("claude"));
+    cmd.args(&args)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null());
+    if let Some(dir) = cwd.filter(|d| !d.is_empty() && std::path::Path::new(d).is_dir()) {
+        cmd.current_dir(dir);
+    }
+    let mut child = cmd.spawn().ok()?;
+    let stdin = child.stdin.take()?;
+    let stdout = child.stdout.take()?;
+    let (btx, brx) = std::sync::mpsc::channel::<CliBlock>();
+    let alive = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let alive2 = alive.clone();
+    std::thread::spawn(move || {
+        let mut rdr = std::io::BufReader::new(stdout);
+        let mut line = String::new();
+        loop {
+            line.clear();
+            match rdr.read_line(&mut line) {
+                Ok(0) | Err(_) => break,
+                Ok(_) => parse_claude_line(&line, &btx),
+            }
+        }
+        alive2.store(false, std::sync::atomic::Ordering::SeqCst);
+    });
+    Some(std::sync::Arc::new(WarmClaude {
+        key,
+        alive,
+        io: std::sync::Mutex::new(WarmIo {
+            stdin,
+            rx: brx,
+            last_used: std::time::Instant::now(),
+        }),
+        child: std::sync::Mutex::new(child),
+    }))
+}
+
+/// Runs ONE turn against the warm session for `conversation_id`, spawning or
+/// respawning it as needed. Sends only the new user message — the live process
+/// keeps the conversation's own context. Returns true when the turn was handled
+/// (streamed to `on_block`); false means the caller should fall back to one-shot.
+fn warm_claude_turn(
+    conversation_id: &str,
+    model: &str,
+    effort: Option<&str>,
+    user_msg: &str,
+    cwd: Option<&str>,
+    timeout: std::time::Duration,
+    mut on_block: impl FnMut(CliBlock),
+) -> bool {
+    use std::io::Write;
+    use std::sync::atomic::Ordering;
+    use std::sync::mpsc::RecvTimeoutError;
+    let want_key = format!("{}|{}|{}", cwd.unwrap_or(""), model, effort.unwrap_or(""));
+
+    // Get or (re)create the session. The registry lock is held only for the
+    // cheap checks + fork, never across the turn — so other chats stay responsive.
+    let handle = {
+        let mut reg = match warm_registry().lock() {
+            Ok(g) => g,
+            Err(_) => return false,
+        };
+        let reuse = reg
+            .get(conversation_id)
+            .map(|h| h.alive.load(Ordering::SeqCst) && h.key == want_key)
+            .unwrap_or(false);
+        if !reuse {
+            reg.remove(conversation_id); // drops the old Arc => Drop kills its process
+            let spawned = match spawn_warm_claude(model, effort, cwd, want_key.clone()) {
+                Some(s) => s,
+                None => return false,
+            };
+            reg.insert(conversation_id.to_string(), spawned);
+        }
+        match reg.get(conversation_id) {
+            Some(h) => h.clone(),
+            None => return false,
+        }
+    };
+
+    let mut io = match handle.io.lock() {
+        Ok(g) => g,
+        Err(_) => return false,
+    };
+
+    // Drop anything left from a prior turn, then send this message.
+    while io.rx.try_recv().is_ok() {}
+    let payload = serde_json::json!({
+        "type": "user",
+        "message": { "role": "user", "content": [{ "type": "text", "text": user_msg }] }
+    });
+    let line = format!("{payload}\n");
+    if io.stdin.write_all(line.as_bytes()).is_err() || io.stdin.flush().is_err() {
+        drop(io);
+        let _ = warm_registry().lock().map(|mut r| r.remove(conversation_id));
+        return false;
+    }
+
+    // Stream blocks until this turn's `result` (a Usage block) or death/timeout.
+    let start = std::time::Instant::now();
+    let mut produced = false;
+    loop {
+        match io.rx.recv_timeout(std::time::Duration::from_millis(200)) {
+            Ok(block) => {
+                let done = matches!(block, CliBlock::Usage(_));
+                on_block(block);
+                produced = true;
+                if done {
+                    io.last_used = std::time::Instant::now();
+                    return true;
+                }
+            }
+            Err(RecvTimeoutError::Timeout) => {
+                if !handle.alive.load(Ordering::SeqCst) || start.elapsed() > timeout {
+                    break;
+                }
+            }
+            Err(RecvTimeoutError::Disconnected) => break,
+        }
+    }
+    // Turn ended without a clean result → evict so the next turn respawns fresh.
+    drop(io);
+    let _ = warm_registry().lock().map(|mut r| r.remove(conversation_id));
+    produced
 }
 
 /// Parses one line of Codex's `exec --json` output into CliBlocks: reasoning,
@@ -940,12 +1305,20 @@ fn run_codex_streaming(
     on_block: impl FnMut(CliBlock),
 ) {
     let eff = effort.unwrap_or("low");
+    // Full mode lets Codex actually DO the work — edit files in the folder
+    // (workspace-write sandbox; `exec` is already non-interactive so it just
+    // runs, scoped to the project). Fast mode stays read-only and safe.
+    let sandbox = if tools_enabled() {
+        "workspace-write"
+    } else {
+        "read-only"
+    };
     let args = vec![
         "exec".to_string(),
         "--json".to_string(),
         "--skip-git-repo-check".to_string(),
         "-s".to_string(),
-        "read-only".to_string(),
+        sandbox.to_string(),
         "-m".to_string(),
         model.to_string(),
         "-c".to_string(),
@@ -963,31 +1336,35 @@ fn run_codex_streaming(
     run_cli_streaming(cmd, timeout, parse_codex_line, on_block);
 }
 
-/// Path of the "tools mode" flag file. When it exists, the CLIs run with their
-/// full personal config (all MCP servers + skills). When absent (default), they
-/// run in a fast, MCP-free mode. Toggled from the chat with `tools on|off`.
-fn tools_flag_path() -> Option<std::path::PathBuf> {
+/// Path of the "fast mode" flag file. Full "warm" mode — the CLIs load your full
+/// personal config (claude-mem memory + skills + all MCP) in a persistent session
+/// that stays alive across messages — is the DEFAULT. When this flag exists, they
+/// drop to a stripped, memory-free fast mode. Toggled from the chat with `fast` /
+/// `tools on|off`.
+fn fast_mode_flag_path() -> Option<std::path::PathBuf> {
     let home = std::env::var("HOME").ok()?;
-    Some(std::path::PathBuf::from(home).join(".warposs/tools_on"))
+    Some(std::path::PathBuf::from(home).join(".warposs/fast_mode"))
 }
 
-/// True when the user has enabled full tools mode (MCP + skills) via `tools on`.
+/// True when FULL/warm mode is active (the default): the CLIs load claude-mem +
+/// skills + MCP in a persistent per-chat session. False only when the user asked
+/// for `fast` (stripped, memoryless, one-shot per message).
 fn tools_enabled() -> bool {
-    tools_flag_path().map(|p| p.exists()).unwrap_or(false)
+    fast_mode_flag_path().map(|p| !p.exists()).unwrap_or(true)
 }
 
-/// Turns tools mode on/off by creating/removing the flag file.
+/// `on` = full/warm mode (default, removes the fast-mode flag); `off` = fast mode.
 fn set_tools_enabled(on: bool) {
-    let Some(path) = tools_flag_path() else {
+    let Some(path) = fast_mode_flag_path() else {
         return;
     };
     if on {
+        let _ = std::fs::remove_file(&path);
+    } else {
         if let Some(dir) = path.parent() {
             let _ = std::fs::create_dir_all(dir);
         }
         let _ = std::fs::write(&path, b"1");
-    } else {
-        let _ = std::fs::remove_file(&path);
     }
 }
 
@@ -995,8 +1372,12 @@ fn set_tools_enabled(on: bool) {
 /// Some(true/false) when the message is a toggle, else None.
 fn parse_tools_command(query: &str) -> Option<bool> {
     match query.trim().to_lowercase().as_str() {
-        "tools on" | "/tools on" | "enable tools" | "tools" => Some(true),
-        "tools off" | "/tools off" | "disable tools" | "fast" | "fast mode" => Some(false),
+        "tools on" | "/tools on" | "enable tools" | "tools" | "full" | "/full" | "warm" => {
+            Some(true)
+        }
+        "tools off" | "/tools off" | "disable tools" | "fast" | "fast mode" | "/fast" => {
+            Some(false)
+        }
         _ => None,
     }
 }
@@ -1386,13 +1767,18 @@ fn build_local_cli_invocation(
                 args.push(eff.to_string());
             }
             // Fast mode (see run_claude_streaming): skip the multi-GB plugin/skill
-            // scan unless the user turned tools on.
+            // scan unless the user turned tools on. Full mode: allow file edits.
             if !tools_enabled() {
                 args.push("--setting-sources".to_string());
                 args.push(String::new());
                 args.push("--strict-mcp-config".to_string());
                 args.push("--mcp-config".to_string());
                 args.push("{\"mcpServers\":{}}".to_string());
+            } else {
+                args.push("--permission-mode".to_string());
+                args.push("bypassPermissions".to_string());
+                args.push("--append-system-prompt".to_string());
+                args.push(WEFT_CLEAN_PROMPT.to_string());
             }
             (resolve_local_cli_binary("claude"), args)
         }
@@ -1423,37 +1809,32 @@ fn build_local_cli_invocation(
         // prompt (exit 2: "--print took --model as its prompt").
         "gemini" => {
             let gemini = resolve_local_cli_binary("gemini");
-            if std::path::Path::new(&gemini).is_absolute() {
-                (
-                    gemini,
-                    vec![
-                        "--model".to_string(),
-                        model.to_string(),
-                        "--prompt".to_string(),
-                        prompt.to_string(),
-                    ],
-                )
+            // Full mode: let Gemini edit files (auto-approve edit tools). Fast
+            // mode leaves it in its default read-only/prompting behaviour.
+            let (bin, flag) = if std::path::Path::new(&gemini).is_absolute() {
+                (gemini, "--prompt")
             } else {
-                (
-                    resolve_local_cli_binary("agy"),
-                    vec![
-                        "--model".to_string(),
-                        model.to_string(),
-                        "--print".to_string(),
-                        prompt.to_string(),
-                    ],
-                )
+                (resolve_local_cli_binary("agy"), "--print")
+            };
+            let mut args = vec!["--model".to_string(), model.to_string()];
+            if tools_enabled() {
+                args.push("--approval-mode".to_string());
+                args.push("auto_edit".to_string());
             }
+            args.push(flag.to_string());
+            args.push(prompt.to_string());
+            (bin, args)
         }
-        "agy" => (
-            resolve_local_cli_binary("agy"),
-            vec![
-                "--model".to_string(),
-                model.to_string(),
-                "--print".to_string(),
-                prompt.to_string(),
-            ],
-        ),
+        "agy" => {
+            let mut args = vec!["--model".to_string(), model.to_string()];
+            if tools_enabled() {
+                args.push("--approval-mode".to_string());
+                args.push("auto_edit".to_string());
+            }
+            args.push("--print".to_string());
+            args.push(prompt.to_string());
+            (resolve_local_cli_binary("agy"), args)
+        }
         // ---- Additional auto-detected CLIs (see cli_recipe_models in llms.rs) ----
         // OpenCode: `opencode run "<prompt>"` (optional `-m <model>`).
         "opencode" => {
