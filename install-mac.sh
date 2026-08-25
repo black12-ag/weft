@@ -17,6 +17,17 @@ echo "==> Mounting the disk image..."
 MOUNT="$(hdiutil attach "$DMG" -nobrowse -quiet | grep -o '/Volumes/.*' | head -1)"
 trap 'hdiutil detach "$MOUNT" -quiet >/dev/null 2>&1 || true; rm -rf "$TMP"' EXIT
 
+echo "==> Quitting Weft if it's already running..."
+# Replacing the .app bundle under a LIVE process invalidates its signed code
+# pages, and macOS kills that process with "Code Signature Invalid". So ask any
+# running Weft to quit, then wait for it to actually exit before we replace it.
+osascript -e 'tell application "Weft" to quit' >/dev/null 2>&1 || true
+pkill -f "Weft.app/Contents/MacOS/warp-oss" 2>/dev/null || true
+for _ in $(seq 1 40); do
+  pgrep -f "Weft.app/Contents/MacOS/warp-oss" >/dev/null 2>&1 || break
+  sleep 0.25
+done
+
 echo "==> Installing to /Applications..."
 rm -rf "/Applications/Weft.app"
 cp -R "$MOUNT/Weft.app" "/Applications/"
