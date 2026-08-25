@@ -43,10 +43,10 @@ export default function FeatureBento() {
     {
       icon: Sparkles,
       number: '04',
-      title: 'Live streaming thinking',
-      badge: 'Real-time',
+      title: 'See everything it does',
+      badge: 'Full Transparency',
       color: 'from-cyan-500/20 to-blue-500/10 border-cyan-500/30 text-cyan-400',
-      description: 'The model’s thinking trace and answer stream out live. Auto-collapses to "Thought for Xs" with exact token usage after every reply.'
+      description: 'Its thinking plus every file it reads, edits, writes, and every command it runs — folded into one collapsible “Thought & worked” dropdown. The answer stays clean; click the chevron to see it all.'
     },
     {
       icon: Server,
@@ -67,18 +67,18 @@ export default function FeatureBento() {
     {
       icon: Brain,
       number: '07',
-      title: 'Shared memory across models',
-      badge: 'Obsidian Native',
+      title: 'Remembers your project',
+      badge: 'Persistent Memory',
       color: 'from-indigo-500/20 to-purple-500/10 border-indigo-500/30 text-indigo-400',
-      description: 'One unified context memory across all providers, persisted as clean Markdown (Obsidian-compatible) on your local filesystem.'
+      description: 'Opens straight into the folder you’re in and recalls earlier sessions automatically — through your CLI’s own memory (claude-mem, CLAUDE.md) — so context carries over without re-explaining.'
     },
     {
       icon: Zap,
       number: '08',
-      title: 'Fast terminal-speed replies',
+      title: 'Warm sessions, fast replies',
       badge: 'Native Rust',
       color: 'from-amber-400/20 to-yellow-500/10 border-amber-400/30 text-amber-300',
-      description: 'Built on Warp’s GPU-accelerated engine in Rust. Direct IPC communication gives you instant rendering with zero browser overhead.'
+      description: 'Built on Warp’s GPU-accelerated Rust engine. Each chat keeps your CLI loaded in a warm session — the first message warms up, every message after is fast.'
     }
   ]
 
