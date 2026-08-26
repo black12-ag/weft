@@ -426,7 +426,7 @@ async fn run_local_cli_stream(
             let mut output_acc = String::new();
             let mut produced_output = false;
             let started = std::time::Instant::now();
-            let last_emit = std::cell::Cell::new(std::time::Instant::now());
+            let mut usage_acc = String::new();
             // Full/warm mode (default): keep one claude process alive for the whole
             // chat, so only the FIRST message pays the claude-mem + skills startup;
             // send just the new user turn (the live session keeps its own context).
@@ -454,7 +454,7 @@ async fn run_local_cli_stream(
                             &mut reasoning_acc,
                             &mut output_acc,
                             &mut produced_output,
-                            &last_emit,
+                            &mut usage_acc,
                         )
                     },
                 );
@@ -475,7 +475,7 @@ async fn run_local_cli_stream(
                             &mut reasoning_acc,
                             &mut output_acc,
                             &mut produced_output,
-                            &last_emit,
+                            &mut usage_acc,
                         )
                     },
                 );
@@ -490,6 +490,16 @@ async fn run_local_cli_stream(
                 );
             }
             finish_reasoning(&emit_message, &reasoning_id, &reasoning_acc, started);
+            // Emit the token-usage line LAST — after the reply is flushed — so it
+            // sits in the footer under the message, not above it.
+            if !usage_acc.is_empty() {
+                emit_message(
+                    fresh_id(),
+                    api::message::Message::AgentOutput(api::message::AgentOutput {
+                        text: std::mem::take(&mut usage_acc),
+                    }),
+                );
+            }
             final_answer = output_acc;
             if !produced_output {
                 let (bin, args) =
@@ -512,7 +522,7 @@ async fn run_local_cli_stream(
             let mut output_acc = String::new();
             let mut produced_output = false;
             let started = std::time::Instant::now();
-            let last_emit = std::cell::Cell::new(std::time::Instant::now());
+            let mut usage_acc = String::new();
             run_codex_streaming(
                 &model,
                 effort.as_deref(),
@@ -529,7 +539,7 @@ async fn run_local_cli_stream(
                         &mut reasoning_acc,
                         &mut output_acc,
                         &mut produced_output,
-                        &last_emit,
+                        &mut usage_acc,
                     )
                 },
             );
@@ -543,6 +553,16 @@ async fn run_local_cli_stream(
                 );
             }
             finish_reasoning(&emit_message, &reasoning_id, &reasoning_acc, started);
+            // Emit the token-usage line LAST — after the reply is flushed — so it
+            // sits in the footer under the message, not above it.
+            if !usage_acc.is_empty() {
+                emit_message(
+                    fresh_id(),
+                    api::message::Message::AgentOutput(api::message::AgentOutput {
+                        text: std::mem::take(&mut usage_acc),
+                    }),
+                );
+            }
             final_answer = output_acc;
             if !produced_output {
                 let (bin, args) =
@@ -577,7 +597,15 @@ async fn run_local_cli_stream(
             {
                 cmd.current_dir(dir);
             }
-            let text = run_local_cli_with_timeout(cmd, std::time::Duration::from_secs(180));
+            // Gemini/agy (Antigravity) has no working headless mode — don't hang
+            // for 3 minutes; give it a short leash, then show a clear message.
+            let timeout = if agent == "gemini" || agent == "agy" {
+                std::time::Duration::from_secs(30)
+            } else {
+                std::time::Duration::from_secs(180)
+            };
+            let raw = run_local_cli_with_timeout(cmd, timeout);
+            let text = gemini_terminal_only_hint(&agent, &raw).unwrap_or(raw);
             final_answer = text.clone();
             emit_message(
                 fresh_id(),
@@ -629,14 +657,14 @@ enum CliBlock {
 #[allow(clippy::too_many_arguments)]
 fn accumulate_block(
     block: CliBlock,
-    emit_message: &impl Fn(String, api::message::Message),
-    fresh_id: &impl Fn() -> String,
+    _emit_message: &impl Fn(String, api::message::Message),
+    _fresh_id: &impl Fn() -> String,
     reasoning_id: &str,
     output_id: &str,
     reasoning_acc: &mut String,
     output_acc: &mut String,
     produced_output: &mut bool,
-    last_emit: &std::cell::Cell<std::time::Instant>,
+    usage_acc: &mut String,
 ) {
     // Live token deltas arrive hundreds of times a second. We ALWAYS accumulate,
     // but only push an updated block to the UI at most every ~80ms (a stable id
@@ -646,7 +674,7 @@ fn accumulate_block(
     // final complete text, so nothing is lost.
     // Reserved for a future live-typing mode once the shared-session/remote-control
     // replay dedupes upserts by id.
-    let _ = (reasoning_id, output_id, last_emit);
+    let _ = (reasoning_id, output_id);
     match block {
         CliBlock::Reasoning(s) => {
             if !reasoning_acc.is_empty() {
@@ -669,10 +697,10 @@ fn accumulate_block(
             output_acc.push_str(&s);
         }
         CliBlock::Usage(s) => {
-            emit_message(
-                fresh_id(),
-                api::message::Message::AgentOutput(api::message::AgentOutput { text: s }),
-            );
+            // Don't emit yet — stash it and emit ONCE at the very end (after the
+            // answer is flushed), so the "🔢 in · out" line lands UNDER the reply
+            // in the footer, never above it.
+            *usage_acc = s;
         }
     }
 }
@@ -1405,6 +1433,40 @@ fn usage_message() -> String {
         .to_string()
 }
 
+/// Gemini has no working headless mode right now: Google deprecated the standalone
+/// `gemini` CLI for individual accounts (IneligibleTierError → "migrate to
+/// Antigravity"), and Antigravity's `agy` `--print` is broken (it looks for `.pb`
+/// conversation trajectories that don't exist and times out). So when a gemini/agy
+/// turn comes back empty or with those known errors, show a clear explanation
+/// instead of the raw dump / a 3-minute hang. Returns None for a genuine answer
+/// (an eligible user whose CLI still works).
+fn gemini_terminal_only_hint(agent: &str, raw: &str) -> Option<String> {
+    if agent != "gemini" && agent != "agy" {
+        return None;
+    }
+    let low = raw.to_lowercase();
+    let looks_broken = raw.trim().is_empty()
+        || low.contains("timeout waiting for response")
+        || low.contains("ineligibletier")
+        || low.contains("migrate to antigravity")
+        || low.contains("no longer supported")
+        || low.contains("flags provided but not defined")
+        || low.contains("usage of agy");
+    if !looks_broken {
+        return None;
+    }
+    Some(
+        "⚠️ Gemini isn't available in the agent right now — and it's Google's change, not Weft.\n\n\
+         Google deprecated the standalone `gemini` CLI for individual accounts (it now returns \
+         “migrate to Antigravity”), and Antigravity's `agy` has no working headless mode yet — its \
+         `--print` times out — so Weft can't drive it in the chat.\n\n\
+         ✅ Use it in the terminal instead: press `esc`, then type `agy` — the interactive \
+         Antigravity CLI works there.\n\
+         ✅ Claude and Codex work here in the agent — pick one from the model list."
+            .to_string(),
+    )
+}
+
 // ------------------------- MCP servers (Step 1) -----------------------------
 // Each CLI (claude/codex/gemini) configures its own MCP servers. Weft lists them
 // in Settings with per-server on/off toggles. Default: OFF, so speed is never
@@ -1809,15 +1871,19 @@ fn build_local_cli_invocation(
         // prompt (exit 2: "--print took --model as its prompt").
         "gemini" => {
             let gemini = resolve_local_cli_binary("gemini");
-            // Full mode: let Gemini edit files (auto-approve edit tools). Fast
-            // mode leaves it in its default read-only/prompting behaviour.
-            let (bin, flag) = if std::path::Path::new(&gemini).is_absolute() {
+            let is_real_gemini = std::path::Path::new(&gemini).is_absolute();
+            let (bin, flag) = if is_real_gemini {
                 (gemini, "--prompt")
             } else {
+                // Falls back to `agy` — a DIFFERENT CLI that rejects gemini's
+                // `--approval-mode` (exit 2: "flags provided but not defined").
                 (resolve_local_cli_binary("agy"), "--print")
             };
             let mut args = vec!["--model".to_string(), model.to_string()];
-            if tools_enabled() {
+            // Only the REAL gemini CLI understands `--approval-mode auto_edit`
+            // (to let it edit files). `agy` does not, so never pass it there —
+            // it just answers with its default behaviour.
+            if tools_enabled() && is_real_gemini {
                 args.push("--approval-mode".to_string());
                 args.push("auto_edit".to_string());
             }
@@ -1826,13 +1892,16 @@ fn build_local_cli_invocation(
             (bin, args)
         }
         "agy" => {
-            let mut args = vec!["--model".to_string(), model.to_string()];
-            if tools_enabled() {
-                args.push("--approval-mode".to_string());
-                args.push("auto_edit".to_string());
-            }
-            args.push("--print".to_string());
-            args.push(prompt.to_string());
+            // `agy` uses `--print <prompt>` and does NOT accept gemini's
+            // `--approval-mode` — passing it made every message error out with
+            // its usage dump instead of answering. Keep it to the minimal, always-
+            // valid form so the selected model just responds.
+            let args = vec![
+                "--model".to_string(),
+                model.to_string(),
+                "--print".to_string(),
+                prompt.to_string(),
+            ];
             (resolve_local_cli_binary("agy"), args)
         }
         // ---- Additional auto-detected CLIs (see cli_recipe_models in llms.rs) ----
