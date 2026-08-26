@@ -1311,11 +1311,37 @@ fn parse_codex_line(line: &str, btx: &std::sync::mpsc::Sender<CliBlock>) {
             let _ = btx.send(CliBlock::Usage(line));
         }
         Some("turn.failed") => {
-            let m = value
+            let raw = value
                 .pointer("/error/message")
                 .and_then(|x| x.as_str())
                 .unwrap_or("codex turn failed");
-            let _ = btx.send(CliBlock::Output(format!("Codex error: {}", m.trim())));
+            // Codex's error is usually a nested JSON string; pull out the human
+            // message so we don't dump raw JSON at the user.
+            let human = serde_json::from_str::<serde_json::Value>(raw)
+                .ok()
+                .and_then(|v| {
+                    v.pointer("/error/message")
+                        .and_then(|m| m.as_str())
+                        .map(|s| s.to_string())
+                })
+                .unwrap_or_else(|| raw.to_string());
+            let low = human.to_lowercase();
+            let text = if low.contains("not supported when using codex with a chatgpt account")
+                || low.contains("is not supported")
+            {
+                // The account's ChatGPT plan doesn't allow the configured model —
+                // actionable, not a raw 400 dump.
+                format!(
+                    "⚠️ Codex can't use this model on your ChatGPT plan.\n\n{}\n\n\
+                     ✅ Fix: press `esc`, run `codex`, and pick a model your plan allows \
+                     (or set `model` in `~/.codex/config.toml`), then reselect it here. \
+                     Claude works in the agent meanwhile.",
+                    human.trim()
+                )
+            } else {
+                format!("Codex error: {}", human.trim())
+            };
+            let _ = btx.send(CliBlock::Output(text));
         }
         _ => {}
     }
