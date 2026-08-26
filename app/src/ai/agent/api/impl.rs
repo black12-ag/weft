@@ -590,26 +590,29 @@ async fn run_local_cli_stream(
                     api::message::Message::AgentOutput(api::message::AgentOutput { text }),
                 );
             }
+        } else if let Some(text) = gemini_terminal_only_hint(&agent, "") {
+            // Gemini/agy (Antigravity) has no working headless mode (Google
+            // deprecated the standalone gemini CLI; agy's --print times out). Answer
+            // INSTANTLY with the clear "use it in the terminal" message instead of
+            // making the user sit through a 30s timeout.
+            final_answer = text.clone();
+            emit_message(
+                fresh_id(),
+                api::message::Message::AgentOutput(api::message::AgentOutput { text }),
+            );
         } else {
             let (bin, args) =
                 build_local_cli_invocation(&agent, &model, effort.as_deref(), &prompt);
             let mut cmd = std::process::Command::new(&bin);
             cmd.args(&args);
-            // Run in the user's current folder (Gemini/OpenCode/etc.), not home.
+            // Run in the user's current folder (OpenCode/Cursor/Ollama/etc.), not home.
             if let Some(dir) = cwd
                 .as_deref()
                 .filter(|d| !d.is_empty() && std::path::Path::new(d).is_dir())
             {
                 cmd.current_dir(dir);
             }
-            // Gemini/agy (Antigravity) has no working headless mode — don't hang
-            // for 3 minutes; give it a short leash, then show a clear message.
-            let timeout = if agent == "gemini" || agent == "agy" {
-                std::time::Duration::from_secs(30)
-            } else {
-                std::time::Duration::from_secs(180)
-            };
-            let raw = run_local_cli_with_timeout(cmd, timeout);
+            let raw = run_local_cli_with_timeout(cmd, std::time::Duration::from_secs(180));
             let text = gemini_terminal_only_hint(&agent, &raw).unwrap_or(raw);
             final_answer = text.clone();
             emit_message(
