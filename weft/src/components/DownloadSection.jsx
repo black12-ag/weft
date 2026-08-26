@@ -1,10 +1,19 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Apple, Terminal, Copy, Check, Github } from 'lucide-react'
 import confetti from 'canvas-confetti'
 
 export default function DownloadSection() {
   const [copied, setCopied] = useState('')
+  // Show the current release version, fetched live so it's always up to date
+  // (the download link itself always points at /releases/latest/download/Weft.dmg).
+  const [version, setVersion] = useState('')
+  useEffect(() => {
+    fetch('https://api.github.com/repos/black12-ag/weft/releases/latest')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && d.tag_name && setVersion(d.tag_name))
+      .catch(() => {})
+  }, [])
 
   const handleCopy = (text, key = 'mac') => {
     navigator.clipboard.writeText(text)
@@ -63,6 +72,7 @@ export default function DownloadSection() {
               <Apple className="w-5 h-5 fill-current" />
               <span>macOS</span>
               <span className="ml-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 bg-emerald-100 border border-emerald-200 rounded-full px-2 py-0.5">Live</span>
+              {version && <span className="text-[11px] font-mono text-gray-500">{version}</span>}
             </div>
 
             {/* macOS Box */}
@@ -73,7 +83,7 @@ export default function DownloadSection() {
               className="block border border-gray-300 rounded-xl p-4 bg-gray-50 space-y-1 hover:border-black transition-all cursor-pointer shadow-xs"
             >
               <div className="font-bold text-sm text-black">macOS (Universal / Apple Silicon & Intel)</div>
-              <div className="text-xs text-gray-500">Download installer (.dmg)</div>
+              <div className="text-xs text-gray-500">Download installer (.dmg){version ? ` · ${version}` : ''} — always the latest release</div>
             </motion.a>
 
             {/* Command Box */}
