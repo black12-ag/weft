@@ -427,6 +427,7 @@ async fn run_local_cli_stream(
             let mut produced_output = false;
             let started = std::time::Instant::now();
             let mut usage_acc = String::new();
+            let last_emit = std::cell::Cell::new(std::time::Instant::now());
             // Full/warm mode (default): keep one claude process alive for the whole
             // chat, so only the FIRST message pays the claude-mem + skills startup;
             // send just the new user turn (the live session keeps its own context).
@@ -455,6 +456,7 @@ async fn run_local_cli_stream(
                             &mut output_acc,
                             &mut produced_output,
                             &mut usage_acc,
+                            &last_emit,
                         )
                     },
                 );
@@ -476,6 +478,7 @@ async fn run_local_cli_stream(
                             &mut output_acc,
                             &mut produced_output,
                             &mut usage_acc,
+                            &last_emit,
                         )
                     },
                 );
@@ -523,6 +526,7 @@ async fn run_local_cli_stream(
             let mut produced_output = false;
             let started = std::time::Instant::now();
             let mut usage_acc = String::new();
+            let last_emit = std::cell::Cell::new(std::time::Instant::now());
             run_codex_streaming(
                 &model,
                 effort.as_deref(),
@@ -540,6 +544,7 @@ async fn run_local_cli_stream(
                         &mut output_acc,
                         &mut produced_output,
                         &mut usage_acc,
+                        &last_emit,
                     )
                 },
             );
@@ -657,7 +662,7 @@ enum CliBlock {
 #[allow(clippy::too_many_arguments)]
 fn accumulate_block(
     block: CliBlock,
-    _emit_message: &impl Fn(String, api::message::Message),
+    emit_message: &impl Fn(String, api::message::Message),
     _fresh_id: &impl Fn() -> String,
     reasoning_id: &str,
     output_id: &str,
@@ -665,6 +670,7 @@ fn accumulate_block(
     output_acc: &mut String,
     produced_output: &mut bool,
     usage_acc: &mut String,
+    last_emit: &std::cell::Cell<std::time::Instant>,
 ) {
     // Live token deltas arrive hundreds of times a second. We ALWAYS accumulate,
     // but only push an updated block to the UI at most every ~80ms (a stable id
@@ -674,7 +680,11 @@ fn accumulate_block(
     // final complete text, so nothing is lost.
     // Reserved for a future live-typing mode once the shared-session/remote-control
     // replay dedupes upserts by id.
-    let _ = (reasoning_id, output_id);
+    let _ = output_id;
+    // Did this block grow the Thinking/activity? If so we stream it LIVE (below),
+    // so the user sees what the agent reads / edits / runs and thinks AS it happens.
+    let reasoning_changed =
+        matches!(block, CliBlock::Reasoning(_) | CliBlock::ReasoningDelta(_));
     match block {
         CliBlock::Reasoning(s) => {
             if !reasoning_acc.is_empty() {
@@ -697,11 +707,30 @@ fn accumulate_block(
             output_acc.push_str(&s);
         }
         CliBlock::Usage(s) => {
-            // Don't emit yet — stash it and emit ONCE at the very end (after the
-            // answer is flushed), so the "🔢 in · out" line lands UNDER the reply
-            // in the footer, never above it.
+            // Stashed and emitted ONCE at the end (after the answer) so the
+            // "🔢 in · out" line lands in the footer under the reply.
             *usage_acc = s;
+            return;
         }
+    }
+    // Stream the growing Thinking/activity block live — at most every ~120ms (a
+    // stable id upserts the SAME block, so it grows in place). Only the reasoning
+    // block streams live; the ANSWER stays emit-once so it never stacks. The final
+    // `finish_reasoning` sends the complete block and collapses it to "Thought for
+    // Xs". Tool-call steps arrive as whole Reasoning blocks, so they show up the
+    // instant the agent runs them.
+    if reasoning_changed
+        && !reasoning_acc.is_empty()
+        && last_emit.get().elapsed() >= std::time::Duration::from_millis(120)
+    {
+        emit_message(
+            reasoning_id.to_string(),
+            api::message::Message::AgentReasoning(api::message::AgentReasoning {
+                reasoning: reasoning_acc.clone(),
+                finished_duration: None,
+            }),
+        );
+        last_emit.set(std::time::Instant::now());
     }
 }
 
